@@ -1,0 +1,118 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-paper: #fbfaf6;
+  --color-paper-2: #f3f1ea;
+  --color-grid: #dce6ef;
+  --color-ink: #1c2127;
+  --color-graphite: #6a7178;
+  --color-faint: #9aa3ab;
+  --color-up: #177244;
+  --color-down: #b3362a;
+  --color-pen: #2848b8;
+  --color-marker: #ffe95c;
+  --color-stamp: #c03a2e;
+
+  --font-mono: var(--font-plex), 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+html {
+  background: var(--color-paper);
+}
+
+body {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  /* quad-ruled graph paper */
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(var(--color-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+::selection {
+  background: var(--color-marker);
+}
+
+/* rubber stamp */
+.stamp {
+  display: inline-block;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  padding: 0 0.4em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+  opacity: 0.85;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0.35'/%3E%3C/filter%3E%3Crect width='120' height='40' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-size: cover;
+}
+
+/* highlighter smear behind a value */
+.hilite {
+  background: linear-gradient(104deg, transparent 0.5%, var(--color-marker) 3%, color-mix(in srgb, var(--color-marker) 82%, transparent) 96%, transparent 99%);
+  box-decoration-break: clone;
+  padding: 0 0.25em;
+  margin: 0 -0.1em;
+}
+
+/* ledger table */
+.ledger th {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  color: var(--color-graphite);
+  border-bottom: 2px solid var(--color-ink);
+  padding: 6px 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+.ledger th:first-child,
+.ledger td:first-child {
+  text-align: left;
+}
+.ledger td {
+  border-bottom: 1px solid var(--color-grid);
+  padding: 7px 10px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ledger tr:hover td {
+  background: color-mix(in srgb, var(--color-marker) 14%, transparent);
+}
+
+.slip {
+  background: var(--color-paper);
+  border: 1.5px solid var(--color-ink);
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--color-ink) 14%, transparent);
+}
+
+.rule-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-graphite);
+}
+
+input[type='text'],
+input[type='number'] {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

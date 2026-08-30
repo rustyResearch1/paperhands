@@ -16,7 +16,12 @@ export const robinhoodChain = defineChain({
 export function makeClient(rpcUrl = RPC_URL): PublicClient {
   return createPublicClient({
     chain: robinhoodChain,
-    transport: http(rpcUrl, { batch: true }),
+    // The public RPC mishandles JSON-RPC batch arrays, so batching stays off.
+    transport: http(rpcUrl, {
+      retryCount: 5,
+      retryDelay: 400,
+      timeout: 30_000,
+    }),
   })
 }
 
