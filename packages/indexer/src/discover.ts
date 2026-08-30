@@ -1,4 +1,4 @@
-import { UNISWAP, WETH, erc20Abi, v3FactoryAbi, v3PoolAbi, type ChainClient } from '@paperhands/chain'
+import { UNISWAP, WETH, readTokenMeta, v3FactoryAbi, v3PoolAbi, type ChainClient } from '@paperhands/chain'
 import type Database from 'better-sqlite3'
 import { decodeEventLog, type AbiEvent, type Address, type Log } from 'viem'
 
@@ -167,27 +167,18 @@ export async function resolvePool(
 async function upsertToken(client: ChainClient, db: Database.Database, address: Address, block: bigint) {
   const existing = db.prepare('SELECT address FROM tokens WHERE address = ?').get(address.toLowerCase())
   if (existing) return
-  const c = { address, abi: erc20Abi } as const
   try {
-    const [symbol, name, decimals] = await Promise.all([
-      client.readContract({ ...c, functionName: 'symbol' }),
-      client.readContract({ ...c, functionName: 'name' }),
-      client.readContract({ ...c, functionName: 'decimals' }),
-    ])
+    const meta = await readTokenMeta(client, address)
     db.prepare('INSERT OR IGNORE INTO tokens(address, symbol, name, decimals, first_seen_block) VALUES(?,?,?,?,?)').run(
       address.toLowerCase(),
-      symbol.slice(0, 32),
-      name.slice(0, 64),
-      decimals,
+      meta.symbol.slice(0, 32),
+      meta.name.slice(0, 64),
+      meta.decimals,
       Number(block),
     )
   } catch {
-    db.prepare('INSERT OR IGNORE INTO tokens(address, symbol, name, decimals, first_seen_block) VALUES(?,?,?,?,?)').run(
-      address.toLowerCase(),
-      '???',
-      'unreadable token',
-      18,
-      Number(block),
-    )
+    // Do NOT persist a placeholder: a guessed decimals=18 would corrupt every
+    // price for this token forever. Leaving no row means the pool stays
+    // unloadable and resolution retries on the token's next swap.
   }
 }

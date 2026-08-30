@@ -1,4 +1,4 @@
-/** Price helpers shared by the indexer and the web app. */
+/** Price helpers for turning pool sqrt prices into human quote-per-base numbers. */
 
 const Q96 = 2 ** 96
 

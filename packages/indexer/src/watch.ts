@@ -103,7 +103,7 @@ export class Ingestor {
         const meta = this.loadPoolCache(pool)
         if (!meta) continue
         const ts = this.clock.estimate(s.block)
-        insertSwap.run(
+        const inserted = insertSwap.run(
           s.txHash,
           s.logIndex,
           pool,
@@ -114,6 +114,10 @@ export class Ingestor {
           s.sqrtPriceX96.toString(),
           s.tick,
         )
+        // Replays (crash before cursor save, or a discover re-sweep) must not
+        // double-count candles or swap totals — only a genuinely new swap row
+        // may touch the aggregates.
+        if (inserted.changes === 0) continue
         updatePool.run(Number(s.block), s.sqrtPriceX96.toString(), s.tick, s.liquidity.toString(), pool, Number(s.block))
 
         if (meta.baseIsToken0 !== null) {
@@ -137,7 +141,12 @@ export class Ingestor {
     return { ingested, newPools }
   }
 
-  /** Attribute recent swaps to their sender for the KOL/leaderboard layer. */
+  /**
+   * Attribute recent swaps to their sender for the KOL/leaderboard layer.
+   * Concurrency-capped so a busy tick can't fire a 120-way burst at the
+   * public RPC; failures stay NULL and retry on a later tick (a transient
+   * error must never permanently poison attribution).
+   */
   async enrichTraders(limit = 120): Promise<number> {
     const rows = this.db
       .prepare(
@@ -146,18 +155,20 @@ export class Ingestor {
       .all(limit) as { tx_hash: string }[]
     if (rows.length === 0) return 0
     const update = this.db.prepare('UPDATE swaps SET trader = ? WHERE tx_hash = ?')
+    const queue = rows.map((r) => r.tx_hash)
     let n = 0
-    await Promise.all(
-      rows.map(async ({ tx_hash }) => {
+    const workers = Array.from({ length: Math.min(8, queue.length) }, async () => {
+      for (let tx_hash = queue.pop(); tx_hash; tx_hash = queue.pop()) {
         try {
           const tx = await this.client.getTransaction({ hash: tx_hash as `0x${string}` })
           update.run(tx.from.toLowerCase(), tx_hash)
           n++
         } catch {
-          update.run('0x', tx_hash) // unresolvable; stop retrying it
+          // leave NULL; a later tick retries
         }
-      }),
-    )
+      }
+    })
+    await Promise.all(workers)
     return n
   }
 }
@@ -185,7 +196,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         const to = latest - cursor > 5000n ? cursor + 5000n : latest
         const swaps = await fetchSwapLogs(client, cursor + 1n, to)
         const { ingested, newPools } = await ingestor.ingest(swaps)
-        const enriched = await ingestor.enrichTraders()
+        const enriched = await ingestor.enrichTraders(60)
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())
         if (swaps.length > 0) {
@@ -197,6 +208,6 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
     } catch (err) {
       console.error('watch: tick failed, retrying —', (err as Error).message.split('\n')[0])
     }
-    await new Promise((r) => setTimeout(r, opts.pollMs ?? 4000))
+    await new Promise((r) => setTimeout(r, opts.pollMs ?? 6000))
   }
 }

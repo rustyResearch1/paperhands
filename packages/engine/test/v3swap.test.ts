@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { roundTripV3 } from '../src/honesty.js'
 import type { V3PoolState } from '../src/types.js'
-import { Q96 } from '../src/v3/math.js'
+import { Q96, divRoundingUp, getAmount0Delta, getSqrtRatioAtTick } from '../src/v3/math.js'
 import { poolStateAfter, quoteV3ExactIn, simulateV3ExactIn } from '../src/v3/swap.js'
 
 const OUTER = 10n ** 21n
@@ -95,6 +95,45 @@ describe('simulateV3ExactIn', () => {
   })
 })
 
+describe('boundary landings (regression: step-start tick guard)', () => {
+  it('a swap ending exactly on a crossed tick reports the far side, and chains cleanly', () => {
+    // Size the swap to land exactly on tick -600 (plus a few wei of dust that
+    // a follow-up zero-progress step eats as fee). Before the fix, the tick
+    // recompute guard used the swap's origin price, put tickAfter back on the
+    // wrong side (-600 instead of -601), and a chained sell re-crossed the
+    // tick and threw 'negative liquidity after cross'.
+    const pool = syntheticPool()
+    const L = OUTER + INNER
+    const need = getAmount0Delta(getSqrtRatioAtTick(-600), Q96, L, true)
+    const gross = divRoundingUp(need * 1_000_000n, 997_000n)
+    for (let extra = 0n; extra <= 6n; extra++) {
+      const r = simulateV3ExactIn(pool, gross + extra, true)
+      expect(r.tickAfter).toBe(-601)
+      expect(r.liquidityAfter).toBe(OUTER)
+      const back = simulateV3ExactIn(poolStateAfter(pool, r), r.amountOut, false)
+      expect(back.amountOut).toBeGreaterThan(0n)
+    }
+  })
+
+  it('a state outside the tick window stops cleanly instead of flipping direction', () => {
+    const pool: V3PoolState = {
+      ...syntheticPool(),
+      sqrtPriceX96: getSqrtRatioAtTick(-700),
+      tick: -700,
+      liquidity: 0n,
+      ticks: [
+        { tick: -600, liquidityNet: INNER },
+        { tick: 600, liquidityNet: -INNER },
+      ],
+      tickWindow: { min: -600, max: 600 },
+    }
+    const r = simulateV3ExactIn(pool, 10n ** 18n, true)
+    expect(r.amountOut).toBe(0n)
+    expect(r.amountIn).toBe(0n)
+    expect(r.exhaustedWindow).toBe(true)
+  })
+})
+
 describe('quoteV3ExactIn honesty metrics', () => {
   it('price impact grows superlinearly with size', () => {
     const q1 = quoteV3ExactIn(syntheticPool(), 10n ** 18n, false)
@@ -129,6 +168,23 @@ describe('roundTripV3', () => {
       expect(rt.retention).toBeGreaterThan(0.9938)
       expect(rt.retention).toBeLessThan(0.998)
     }
+  })
+
+  it('partial-fill round trips count unspent input as kept, not vaporized', () => {
+    const pool: V3PoolState = {
+      ...syntheticPool(),
+      liquidity: INNER,
+      ticks: [
+        { tick: -600, liquidityNet: INNER },
+        { tick: 600, liquidityNet: -INNER },
+      ],
+      tickWindow: { min: -600, max: 600 },
+    }
+    const rt = roundTripV3(pool, 10n ** 24n, true)
+    expect(rt.buy.fillRatio).toBeLessThan(1)
+    // Nearly all the input never left the wallet; retention must reflect that.
+    expect(rt.retention).toBeGreaterThan(0.9)
+    expect(rt.retention).toBeLessThan(1)
   })
 
   it('mark-to-market inflates across thin bands — the real paper-hands lie', () => {

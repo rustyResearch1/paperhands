@@ -1,20 +1,28 @@
 const SUBSCRIPTS = '₀₁₂₃₄₅₆₇₈₉'
 
-/** 0.0000032175 → "0.0₅3217" — the compact deep-decimal notation traders read fluently. */
+/**
+ * 0.0000032175 → "0.0₅3218" — the compact deep-decimal notation traders read
+ * fluently: the subscript is the total count of zeros after the decimal point,
+ * followed by the four significant digits, rounded.
+ */
 export function formatPrice(p: number): string {
   if (!Number.isFinite(p) || p <= 0) return '—'
   if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 0 })
   if (p >= 0.01) return p.toPrecision(4)
-  const zeros = Math.floor(-Math.log10(p)) - 1
+  // p ∈ [10^-(zeros+1), 10^-zeros) has exactly `zeros` zeros after the point
+  let zeros = Math.ceil(-Math.log10(p)) - 1
+  let mantissa = Math.round(p * 10 ** (zeros + 4))
+  if (mantissa >= 10000) {
+    // rounding carried into the next magnitude (e.g. 0.0000099995 → 0.0₄1000)
+    mantissa = Math.round(mantissa / 10)
+    zeros -= 1
+  }
   if (zeros <= 2) return p.toPrecision(4)
-  const digits = Math.round(p * 10 ** (zeros + 5))
-    .toString()
-    .slice(0, 4)
   const sub = String(zeros)
     .split('')
     .map((c) => SUBSCRIPTS[Number(c)])
     .join('')
-  return `0.0${sub}${digits}`
+  return `0.0${sub}${mantissa}`
 }
 
 export function formatEth(wei: bigint, digits = 4): string {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts'
+import { createChart, type UTCTimestamp } from 'lightweight-charts'
 
 interface Candle {
   time: number
@@ -14,8 +14,6 @@ interface Candle {
 
 export default function Chart({ pool }: { pool: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<IChartApi | null>(null)
-  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const lastTimeRef = useRef(0)
 
   useEffect(() => {
@@ -48,9 +46,6 @@ export default function Chart({ pool }: { pool: string }) {
       wickDownColor: '#b3362a',
       priceFormat: { type: 'price', precision: 10, minMove: 1e-10 },
     })
-    chartRef.current = chart
-    seriesRef.current = series
-
     let stopped = false
     async function poll() {
       if (stopped) return
@@ -73,8 +68,6 @@ export default function Chart({ pool }: { pool: string }) {
     return () => {
       stopped = true
       chart.remove()
-      chartRef.current = null
-      seriesRef.current = null
     }
   }, [pool])
 

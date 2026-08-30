@@ -25,7 +25,11 @@ export function applyBuy(pos: Position, qtyBought: bigint, quoteSpent: bigint): 
 export function applySell(pos: Position, qtySold: bigint, quoteReceived: bigint): Position {
   if (qtySold <= 0n) throw new Error('applySell: nothing sold')
   if (qtySold > pos.qty) throw new Error('applySell: selling more than held')
-  const basisRemoved = (pos.costQuote * qtySold) / pos.qty
+  // Round basis up (capped at the full basis) so dust-sized sells can't
+  // realize proceeds against a floor-truncated zero basis.
+  const num = pos.costQuote * qtySold
+  let basisRemoved = num / pos.qty + (num % pos.qty === 0n ? 0n : 1n)
+  if (basisRemoved > pos.costQuote) basisRemoved = pos.costQuote
   return {
     qty: pos.qty - qtySold,
     costQuote: pos.costQuote - basisRemoved,

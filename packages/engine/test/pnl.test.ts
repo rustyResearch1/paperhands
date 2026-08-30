@@ -28,6 +28,14 @@ describe('position accounting', () => {
     expect(unrealizedQuote(pos, 70n)).toBe(-30n)
   })
 
+  it('dust sells cannot realize proceeds against a truncated-to-zero basis', () => {
+    let pos = applyBuy(EMPTY_POSITION, 1_000_000n, 999_999n)
+    pos = applySell(pos, 1n, 5n)
+    // basis rounds up to 1, so realized is 4 — not the full 5 as pure "profit"
+    expect(pos.realizedQuote).toBe(4n)
+    expect(pos.costQuote).toBe(999_998n)
+  })
+
   it('refuses to sell more than held', () => {
     const pos = applyBuy(EMPTY_POSITION, 10n, 10n)
     expect(() => applySell(pos, 11n, 20n)).toThrow()

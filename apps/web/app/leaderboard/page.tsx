@@ -1,7 +1,8 @@
 import { db } from '@/lib/db'
-import { formatEth } from '@/lib/format'
 import { getOrCreateUser } from '@/lib/session'
 import HandleForm from '@/components/HandleForm'
+
+const fmtEth = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 3 })
 
 export const dynamic = 'force-dynamic'
 
@@ -34,19 +35,16 @@ export default async function Leaderboard() {
      JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
      WHERE po.user_id = ?`,
   )
-  const rows: BoardRow[] = users
+  const rows = users
     .map((u) => {
       const positions = posStmt.all(u.id) as { qty: string; decimals: number; close: number | null }[]
       const mark_positions = positions.reduce(
         (acc, p) => acc + (Number(BigInt(p.qty)) / 10 ** p.decimals) * (p.close ?? 0),
         0,
       )
-      return { ...u, mark_positions }
+      return { ...u, mark_positions, equity: Number(BigInt(u.balance_quote)) / 1e18 + mark_positions }
     })
-    .sort(
-      (a, b) =>
-        Number(BigInt(b.balance_quote)) / 1e18 + b.mark_positions - (Number(BigInt(a.balance_quote)) / 1e18 + a.mark_positions),
-    )
+    .sort((a, b) => b.equity - a.equity)
     .slice(0, 50)
 
   return (
@@ -77,7 +75,6 @@ export default async function Leaderboard() {
           </thead>
           <tbody>
             {rows.map((r, i) => {
-              const equity = Number(BigInt(r.balance_quote)) / 1e18 + r.mark_positions
               const isMe = r.id === me.id
               return (
                 <tr key={r.id} className={isMe ? 'bg-marker/20' : ''}>
@@ -86,12 +83,10 @@ export default async function Leaderboard() {
                     {r.handle ?? `anon-${r.id.slice(0, 6)}`}
                     {isMe && <span className="rule-label ml-2">(you)</span>}
                   </td>
-                  <td className={equity >= 10 ? 'text-up font-bold' : 'text-down font-bold'}>
-                    {equity.toLocaleString('en-US', { maximumFractionDigits: 3 })}
-                  </td>
+                  <td className={r.equity >= 10 ? 'text-up font-bold' : 'text-down font-bold'}>{fmtEth(r.equity)}</td>
                   <td className={r.realized >= 0 ? 'text-up' : 'text-down'}>
                     {r.realized >= 0 ? '+' : ''}
-                    {r.realized.toLocaleString('en-US', { maximumFractionDigits: 3 })}
+                    {fmtEth(r.realized)}
                   </td>
                   <td className="text-graphite">{r.trades}</td>
                 </tr>

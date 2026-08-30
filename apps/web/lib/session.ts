@@ -12,8 +12,13 @@ export interface UserRow {
 
 export async function getOrCreateUser(): Promise<UserRow> {
   const jar = await cookies()
-  // middleware guarantees the cookie on real requests; build-time renders get a throwaway id
-  const id = jar.get('ph_user')?.value ?? 'anonymous'
+  const id = jar.get('ph_user')?.value
+  if (!id) {
+    // Build-time render or a cookie-less client: an ephemeral identity that is
+    // never persisted — a shared 'anonymous' DB row would be one bankroll
+    // tradeable by every cookie-less request.
+    return { id: '__ephemeral', handle: null, created_ts: 0, balance_quote: STARTING_BANKROLL_WEI }
+  }
   let row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
   if (!row) {
     db.prepare('INSERT OR IGNORE INTO users(id, handle, created_ts, balance_quote) VALUES(?, NULL, ?, ?)').run(

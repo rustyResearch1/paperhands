@@ -1,5 +1,5 @@
 import { makeClient } from '@paperhands/chain'
-import { openDb, setMeta } from './db.js'
+import { getMeta, openDb, setMeta } from './db.js'
 import { fetchSwapLogs } from './discover.js'
 import { Ingestor, watchLoop } from './watch.js'
 
@@ -10,7 +10,14 @@ const db = openDb()
 /** Bootstrap: sweep recent history so the screener has pools, prices, candles. */
 async function discover(blocks = 20_000n) {
   const latest = await client.getBlockNumber()
-  const from = latest > blocks ? latest - blocks : 1n
+  // Resume from the saved cursor when it's inside the sweep window, so a
+  // restart doesn't leave a silent gap and doesn't re-fetch covered ranges.
+  const saved = getMeta(db, 'watch_cursor')
+  let from = latest > blocks ? latest - blocks : 1n
+  if (saved && BigInt(saved) > from && BigInt(saved) < latest) from = BigInt(saved) + 1n
+  if (saved && BigInt(saved) < latest - blocks) {
+    console.warn(`discover: saved cursor ${saved} is older than the ${blocks}-block sweep — blocks ${saved}..${from - 1n} stay unindexed`)
+  }
   console.log(`discover: scanning blocks ${from}..${latest} for active pools`)
   const ingestor = new Ingestor(client, db)
   await ingestor.clock.sync()

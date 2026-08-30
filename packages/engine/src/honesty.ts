@@ -14,7 +14,10 @@ export function roundTripV3(pool: V3PoolState, quoteAmountIn: bigint, baseIsToke
   const afterBuy = poolStateAfter(pool, buy)
   const sell: Quote = quoteV3ExactIn(afterBuy, buy.amountOut, baseIsToken0)
 
-  const retention = quoteAmountIn > 0n ? Number(sell.amountOut) / Number(quoteAmountIn) : 1
+  // Input the buy never consumed (partial fill) stays in the wallet — it is
+  // not lost, so it counts toward what survives the trip.
+  const unspent = quoteAmountIn - buy.amountIn
+  const retention = quoteAmountIn > 0n ? Number(sell.amountOut + unspent) / Number(quoteAmountIn) : 1
   // buy.spotPriceAfter is base-per-quote; invert to price the bag in quote.
   const spotBaseInQuote = buy.spotPriceAfter > 0 ? 1 / buy.spotPriceAfter : 0
   const markValueQuote = Number(buy.amountOut) * spotBaseInQuote

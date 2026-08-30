@@ -19,29 +19,35 @@ export interface V3PoolSnapshot {
   blockNumber: bigint
 }
 
+const tokenMetaCache = new Map<string, TokenMeta>()
+
 export async function readTokenMeta(client: ChainClient, address: Address): Promise<TokenMeta> {
+  const cached = tokenMetaCache.get(address.toLowerCase())
+  if (cached) return cached
   const c = { address, abi: erc20Abi } as const
   const [symbol, name, decimals] = await Promise.all([
     client.readContract({ ...c, functionName: 'symbol' }),
     client.readContract({ ...c, functionName: 'name' }),
     client.readContract({ ...c, functionName: 'decimals' }),
   ])
-  return { address, symbol, name, decimals }
+  const meta = { address, symbol, name, decimals }
+  tokenMetaCache.set(address.toLowerCase(), meta)
+  return meta
 }
 
 /**
  * Read everything the engine needs to simulate swaps in a v3 pool.
  *
  * Ticks come from TickLens over `wordRadius` bitmap words each side of the
- * current tick. One word covers 256 * tickSpacing ticks, so the default
- * radius of 8 words spans roughly ±12% of price range per word-side even at
- * spacing 10 — far more than any sane paper trade moves. The window is
+ * current tick. One word covers 256 * tickSpacing ticks, so even a radius of
+ * 5 words spans far more price range than any sane paper trade moves (the
+ * public RPC rate-limits, so every word costs budget). The window is
  * recorded in the state so oversize swaps report exhaustion honestly.
  */
 export async function readV3Pool(
   client: ChainClient,
   pool: Address,
-  wordRadius = 8,
+  wordRadius = 5,
 ): Promise<V3PoolSnapshot> {
   const p = { address: pool, abi: v3PoolAbi } as const
   const blockNumber = await client.getBlockNumber()
@@ -62,18 +68,23 @@ export async function readV3Pool(
   const wordIndexes: number[] = []
   for (let w = currentWord - wordRadius; w <= currentWord + wordRadius; w++) wordIndexes.push(w)
 
+  // A failed word read MUST fail the whole snapshot: silently dropping a word
+  // while tickWindow still claims coverage would let the engine simulate
+  // through missing liquidity and overstate fills with no flag.
   const wordResults = await Promise.all(
-    wordIndexes.map((w) =>
-      client
-        .readContract({
+    wordIndexes.map(async (w) => {
+      try {
+        return await client.readContract({
           address: UNISWAP.v3TickLens,
           abi: tickLensAbi,
           functionName: 'getPopulatedTicksInWord',
           args: [pool, w],
           blockNumber,
         })
-        .catch(() => []),
-    ),
+      } catch (err) {
+        throw new Error(`TickLens word ${w} unreadable for ${pool}: ${(err as Error).message.split('\n')[0]}`)
+      }
+    }),
   )
 
   const ticks: TickData[] = wordResults

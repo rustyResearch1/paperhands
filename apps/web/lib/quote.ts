@@ -1,5 +1,5 @@
 import { makeClient, readV3Pool, type V3PoolSnapshot } from '@paperhands/chain'
-import { quoteV3ExactIn, poolStateAfter, type Quote } from '@paperhands/engine'
+import { quoteV3ExactIn, roundTripV3, type Quote } from '@paperhands/engine'
 import type { Address } from 'viem'
 import { db } from './db'
 
@@ -10,7 +10,7 @@ const g = globalThis as unknown as {
 const client = (g.__phclient ??= makeClient())
 const snaps = (g.__phsnaps ??= new Map())
 
-const SNAP_TTL_MS = 10_000
+const SNAP_TTL_MS = 15_000
 
 export interface PoolMeta {
   address: string
@@ -34,11 +34,18 @@ export function poolMeta(pool: string): PoolMeta | undefined {
     .get(pool.toLowerCase()) as PoolMeta | undefined
 }
 
-/** Live pool snapshot, cached briefly so ticket polling doesn't hammer the RPC. */
-export async function getSnapshot(pool: string): Promise<V3PoolSnapshot> {
+/**
+ * Live pool snapshot, cached briefly so ticket polling doesn't hammer the
+ * RPC. Pass `fresh: true` on paths that execute against the state — a trade
+ * filling on a 10s-old snapshot would be exploitable by anyone watching the
+ * live tape.
+ */
+export async function getSnapshot(pool: string, opts: { fresh?: boolean } = {}): Promise<V3PoolSnapshot> {
   const key = pool.toLowerCase()
-  const hit = snaps.get(key)
-  if (hit && Date.now() - hit.at < SNAP_TTL_MS) return hit.snap
+  if (!opts.fresh) {
+    const hit = snaps.get(key)
+    if (hit && Date.now() - hit.at < SNAP_TTL_MS) return hit.snap
+  }
   const snap = await readV3Pool(client, key as Address)
   snaps.set(key, { snap, at: Date.now() })
   return snap
@@ -79,13 +86,30 @@ function humanPrices(q: Quote, side: 'buy' | 'sell', baseDecimals: number) {
   }
 }
 
-export async function ticketQuote(pool: string, side: 'buy' | 'sell', amountIn: bigint): Promise<TicketQuote> {
+export async function ticketQuote(
+  pool: string,
+  side: 'buy' | 'sell',
+  amountIn: bigint,
+  opts: { fresh?: boolean } = {},
+): Promise<TicketQuote> {
   const meta = poolMeta(pool)
   if (!meta) throw new Error('unknown or unpriced pool')
-  const snap = await getSnapshot(pool)
+  const snap = await getSnapshot(pool, opts)
   const baseIsToken0 = meta.base_is_token0 === 1
-  const zeroForOne = side === 'buy' ? !baseIsToken0 : baseIsToken0
-  const q = quoteV3ExactIn(snap.state, amountIn, zeroForOne)
+
+  let q: Quote
+  let instantExit: bigint | undefined
+  let markInflation: number | undefined
+  if (side === 'buy') {
+    const rt = roundTripV3(snap.state, amountIn, baseIsToken0)
+    q = rt.buy
+    if (q.amountOut > 0n) {
+      instantExit = rt.sell.amountOut
+      markInflation = rt.markInflation
+    }
+  } else {
+    q = quoteV3ExactIn(snap.state, amountIn, baseIsToken0)
+  }
 
   const out: TicketQuote = {
     side,
@@ -99,14 +123,7 @@ export async function ticketQuote(pool: string, side: 'buy' | 'sell', amountIn: 
     ...humanPrices(q, side, meta.baseDecimals),
     block: snap.blockNumber.toString(),
   }
-
-  if (side === 'buy' && q.amountOut > 0n) {
-    const after = poolStateAfter(snap.state, q)
-    const exit = quoteV3ExactIn(after, q.amountOut, baseIsToken0)
-    out.instantExit = exit.amountOut.toString()
-    const spotAfterBaseInQuote = exit.spotPriceBefore // sell-direction spot = quote per base, raw
-    const mark = Number(q.amountOut) * spotAfterBaseInQuote
-    out.markInflation = Number(exit.amountOut) > 0 ? mark / Number(exit.amountOut) : Infinity
-  }
+  if (instantExit !== undefined) out.instantExit = instantExit.toString()
+  if (markInflation !== undefined) out.markInflation = markInflation
   return out
 }

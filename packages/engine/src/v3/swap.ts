@@ -13,32 +13,39 @@ const MAX_STEPS = 1024
 
 interface NextTick {
   tick: number
-  initialized: boolean
+  index: number
 }
 
-/** Greatest initialized tick <= from (down) or least > from (up). */
-function nextInitializedTick(ticks: TickData[], from: number, zeroForOne: boolean): NextTick | undefined {
-  if (zeroForOne) {
-    for (let i = ticks.length - 1; i >= 0; i--) {
-      const t = ticks[i]!
-      if (t.tick <= from) return { tick: t.tick, initialized: true }
+/** Greatest index with ticks[i].tick <= from, or -1. Ticks are sorted ascending. */
+function floorIndex(ticks: TickData[], from: number): number {
+  let lo = 0
+  let hi = ticks.length - 1
+  let ans = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (ticks[mid]!.tick <= from) {
+      ans = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
     }
-    return undefined
   }
-  for (const t of ticks) {
-    if (t.tick > from) return { tick: t.tick, initialized: true }
+  return ans
+}
+
+/** Greatest initialized tick <= from (down) or least > from (up), by binary search. */
+function nextInitializedTick(ticks: TickData[], from: number, zeroForOne: boolean): NextTick | undefined {
+  const i = floorIndex(ticks, from)
+  if (zeroForOne) {
+    return i >= 0 ? { tick: ticks[i]!.tick, index: i } : undefined
   }
-  return undefined
+  const j = i + 1
+  return j < ticks.length ? { tick: ticks[j]!.tick, index: j } : undefined
 }
 
 /** True when the fetched tick window stops short of the chain's tick range in this direction. */
 function windowIsPartial(zeroForOne: boolean, windowMin: number, windowMax: number): boolean {
   return zeroForOne ? windowMin > MIN_TICK : windowMax < MAX_TICK
-}
-
-function liquidityNetAt(ticks: TickData[], tick: number): bigint {
-  for (const t of ticks) if (t.tick === tick) return t.liquidityNet
-  return 0n
 }
 
 /**
@@ -68,18 +75,22 @@ export function simulateV3ExactIn(pool: V3PoolState, amountIn: bigint, zeroForOn
     const next = nextInitializedTick(pool.ticks, tick, zeroForOne)
 
     let tickNext: number
-    let initialized: boolean
     if (next) {
       tickNext = next.tick
-      initialized = next.initialized
     } else {
-      // Off the edge of what we know. Walk to the window boundary, then stop.
+      // Off the edge of what we know: the window boundary is the last target.
       tickNext = zeroForOne ? windowMin : windowMax
-      initialized = false
+      // A boundary on the wrong side of the current price would flip the swap
+      // direction inside computeSwapStep — stop instead of simulating nonsense.
+      if (zeroForOne ? tickNext > tick : tickNext <= tick) {
+        if (remaining > 0n && windowIsPartial(zeroForOne, windowMin, windowMax)) exhaustedWindow = true
+        break
+      }
     }
     if (tickNext < MIN_TICK) tickNext = MIN_TICK
     else if (tickNext > MAX_TICK) tickNext = MAX_TICK
 
+    const sqrtPriceStartX96 = sqrtPriceX96
     const sqrtPriceNextX96 = getSqrtRatioAtTick(tickNext)
     const target =
       (zeroForOne ? sqrtPriceNextX96 < sqrtPriceLimitX96 : sqrtPriceNextX96 > sqrtPriceLimitX96)
@@ -93,18 +104,21 @@ export function simulateV3ExactIn(pool: V3PoolState, amountIn: bigint, zeroForOn
     feeTotal += step.feeAmount
 
     if (sqrtPriceX96 === sqrtPriceNextX96) {
-      if (initialized) {
-        const net = liquidityNetAt(pool.ticks, tickNext)
+      if (next) {
+        const net = pool.ticks[next.index]!.liquidityNet
         liquidity += zeroForOne ? -net : net
         ticksCrossed++
         if (liquidity < 0n) throw new Error('simulateV3ExactIn: negative liquidity after cross')
       }
       tick = zeroForOne ? tickNext - 1 : tickNext
-      if (!initialized) {
+      if (!next) {
         if (remaining > 0n && windowIsPartial(zeroForOne, windowMin, windowMax)) exhaustedWindow = true
         break
       }
-    } else if (sqrtPriceX96 !== pool.sqrtPriceX96) {
+    } else if (sqrtPriceX96 !== sqrtPriceStartX96) {
+      // Guard against the STEP's start price (not the swap's), or a swap that
+      // lands exactly on a crossed boundary gets its tick recomputed onto the
+      // wrong side — corrupting any chained simulation.
       tick = getTickAtSqrtRatio(sqrtPriceX96)
     }
 
@@ -114,6 +128,9 @@ export function simulateV3ExactIn(pool: V3PoolState, amountIn: bigint, zeroForOn
       break
     }
   }
+
+  // Step-cap truncation is a floor on the fill, same contract as a partial window.
+  if (remaining > 0n && steps > MAX_STEPS) exhaustedWindow = true
 
   const consumed = amountIn - remaining
   return {
