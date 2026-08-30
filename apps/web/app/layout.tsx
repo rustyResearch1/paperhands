@@ -32,6 +32,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/" className="hover:underline underline-offset-4">
                 screener
               </Link>
+              <Link href="/wire" className="hover:underline underline-offset-4">
+                the wire
+              </Link>
               <Link href="/portfolio" className="hover:underline underline-offset-4">
                 portfolio
               </Link>

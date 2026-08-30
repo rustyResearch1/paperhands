@@ -106,14 +106,23 @@ No wallet, no keys, no funds. The only network dependency is the public RPC
 What it deliberately does not model (yet): your trade moving the market for *others*,
 MEV/sandwiches, and gas (~negligible on the L2 for sizes that matter here).
 
+## The Wire — wallet intelligence and tailing
+
+`/wire` ranks real attributed wallets by **ETH actually taken out of pools** (not marked
+bags), over the tracked window. Every wallet gets a page (`/w/0x…`) with per-pool flows —
+what they bought, what they banked, what they're still holding. And any wallet can be
+**tailed**: set a size, and the indexer mirrors their swaps into your paper account through
+the same honest engine — their buy triggers your fixed-size buy, their sell exits your
+tailed position. You eat *your* slippage at *your* size, which is exactly the lesson:
+copying a whale's entries is not copying their exits.
+
 ## Roadmap
 
-- **KOL tailing** — trader attribution is already indexed; next: named-wallet feeds,
-  "mirror this wallet with my size" strategies, and replaying a whale's month through
-  *your* bankroll to see whether copying them ever worked.
+- **Tail replay** — run a wallet's past month through your bankroll size before tailing it.
 - **Replay mode** — enter at any historical candle, exit through reconstructed liquidity.
 - **Seasons** — 10 ETH, four weeks, wall of fame/shame.
-- USDG-quoted pools, v2 pairs, v4 hooks as liquidity migrates.
+- USDG-quoted pools (needs a quote-currency dimension on the ledger first), v2 pairs,
+  v4 hooks as liquidity migrates.
 
 ## Disclaimers
 

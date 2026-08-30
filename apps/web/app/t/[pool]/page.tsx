@@ -134,9 +134,9 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
                       <td>{formatEth(abs)}</td>
                       <td className="text-graphite">
                         {s.trader && s.trader !== '0x' ? (
-                          <a className="hover:text-pen" href={`${EXPLORER_URL}/address/${s.trader}`} target="_blank" rel="noreferrer">
+                          <Link className="hover:text-pen hover:underline underline-offset-4" href={`/w/${s.trader}`}>
                             {s.trader.slice(0, 6)}…{s.trader.slice(-4)}
-                          </a>
+                          </Link>
                         ) : (
                           '…'
                         )}

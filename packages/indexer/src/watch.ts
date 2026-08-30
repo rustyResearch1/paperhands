@@ -2,6 +2,7 @@ import type { ChainClient } from '@paperhands/chain'
 import type Database from 'better-sqlite3'
 import type { Address } from 'viem'
 import { fetchSwapLogs, resolvePool, type DecodedSwap } from './discover.js'
+import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, setMeta } from './db.js'
 import { BlockClock } from './timestamps.js'
@@ -197,6 +198,8 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         const swaps = await fetchSwapLogs(client, cursor + 1n, to)
         const { ingested, newPools } = await ingestor.ingest(swaps)
         const enriched = await ingestor.enrichTraders(60)
+        const tailFills = await executeTails(client, db)
+        if (tailFills > 0) console.log(`watch: mirrored ${tailFills} tail fill(s)`)
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())
         if (swaps.length > 0) {

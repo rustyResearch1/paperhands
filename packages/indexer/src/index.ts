@@ -1,5 +1,7 @@
 export * from './db.js'
 export * from './discover.js'
+export * from './ledger.js'
 export * from './prices.js'
+export * from './tails.js'
 export * from './timestamps.js'
 export * from './watch.js'

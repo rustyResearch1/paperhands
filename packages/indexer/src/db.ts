@@ -117,7 +117,24 @@ function migrate(db: Database.Database) {
       ts INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS paper_trades_user ON paper_trades(user_id, ts);
+
+    -- KOL tailing: mirror a wallet's buys with a fixed size, exit when it exits
+    CREATE TABLE IF NOT EXISTS kol_tails (
+      user_id TEXT NOT NULL,
+      wallet TEXT NOT NULL,
+      size_quote TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_ts INTEGER NOT NULL,
+      -- only the wallet's swaps after this block get mirrored
+      last_block INTEGER NOT NULL,
+      PRIMARY KEY (user_id, wallet)
+    );
   `)
+
+  const tradeCols = db.prepare(`PRAGMA table_info(paper_trades)`).all() as { name: string }[]
+  if (!tradeCols.some((c) => c.name === 'source')) {
+    db.exec(`ALTER TABLE paper_trades ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`)
+  }
 }
 
 export function getMeta(db: Database.Database, key: string): string | undefined {

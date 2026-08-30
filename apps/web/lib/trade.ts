@@ -1,4 +1,4 @@
-import { applyBuy, applySell, type Position } from '@paperhands/engine'
+import { LedgerRejected, settlePaperTrade } from '@paperhands/indexer'
 import { db } from './db'
 import { poolMeta, ticketQuote, type TicketQuote } from './quote'
 
@@ -13,9 +13,6 @@ export interface TradeError {
   ok: false
   error: string
 }
-
-/** Thrown inside the transaction to surface a clean rejection to the caller. */
-class TradeRejected extends Error {}
 
 /**
  * Execute a paper trade. Buys spend WETH wei; sells spend base-token raw
@@ -65,68 +62,25 @@ export async function executeTrade(
       ? feeRaw
       : BigInt(Math.round(Number(feeRaw) * (consumed > 0n ? Number(amountOut) / Number(consumed) : 0)))
 
-  const now = Math.floor(Date.now() / 1000)
-
-  const tx = db.transaction((): { balance: bigint; positionQty: bigint } => {
-    const user = db.prepare('SELECT balance_quote FROM users WHERE id = ?').get(userId) as
-      | { balance_quote: string }
-      | undefined
-    if (!user) throw new TradeRejected('No paper account. Reload the page.')
-    const balance = BigInt(user.balance_quote)
-
-    const row = db
-      .prepare('SELECT qty, cost_quote, realized_quote FROM positions WHERE user_id = ? AND pool = ?')
-      .get(userId, poolKey) as { qty: string; cost_quote: string; realized_quote: string } | undefined
-    const pos: Position = {
-      qty: BigInt(row?.qty ?? '0'),
-      costQuote: BigInt(row?.cost_quote ?? '0'),
-      realizedQuote: BigInt(row?.realized_quote ?? '0'),
-    }
-
-    let newBalance: bigint
-    let newPos: Position
-    if (side === 'buy') {
-      if (balance < consumed) throw new TradeRejected('Not enough paper ETH in your bankroll.')
-      newBalance = balance - consumed
-      newPos = applyBuy(pos, amountOut, consumed)
-    } else {
-      if (pos.qty < consumed) throw new TradeRejected('You cannot sell more than your position.')
-      newBalance = balance + amountOut
-      newPos = applySell(pos, consumed, amountOut)
-    }
-
-    db.prepare('UPDATE users SET balance_quote = ? WHERE id = ?').run(newBalance.toString(), userId)
-    db.prepare(
-      `INSERT INTO positions(user_id, pool, qty, cost_quote, realized_quote) VALUES(?,?,?,?,?)
-       ON CONFLICT(user_id, pool) DO UPDATE SET
-         qty = excluded.qty, cost_quote = excluded.cost_quote, realized_quote = excluded.realized_quote`,
-    ).run(userId, poolKey, newPos.qty.toString(), newPos.costQuote.toString(), newPos.realizedQuote.toString())
-
-    db.prepare(
-      `INSERT INTO paper_trades(user_id, pool, side, qty, quote_amount, fee_quote, price_impact_bps, fill_ratio, spot_price, exec_price, block, ts)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-    ).run(
-      userId,
-      poolKey,
-      side,
-      side === 'buy' ? amountOut.toString() : consumed.toString(),
-      side === 'buy' ? consumed.toString() : amountOut.toString(),
-      feeQuote.toString(),
-      quote.priceImpactBps,
-      quote.fillRatio,
-      quote.spotPrice,
-      quote.execPrice,
-      Number(quote.block),
-      now,
-    )
-    return { balance: newBalance, positionQty: newPos.qty }
-  })
-
   try {
-    const r = tx()
+    const r = settlePaperTrade(db, {
+      userId,
+      pool: poolKey,
+      side,
+      consumed,
+      amountOut,
+      feeQuote,
+      priceImpactBps: quote.priceImpactBps,
+      fillRatio: quote.fillRatio,
+      spotPrice: quote.spotPrice,
+      execPrice: quote.execPrice,
+      block: Number(quote.block),
+      ts: Math.floor(Date.now() / 1000),
+      source: 'manual',
+    })
     return { ok: true, quote, balance: r.balance.toString(), positionQty: r.positionQty.toString() }
   } catch (err) {
-    if (err instanceof TradeRejected) return { ok: false, error: err.message }
+    if (err instanceof LedgerRejected) return { ok: false, error: err.message }
     throw err
   }
 }
