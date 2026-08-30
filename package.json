@@ -1,0 +1,15 @@
+{
+  "name": "paperhands",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Execution-honest paper trading for Robinhood Chain memecoins",
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@10.14.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
