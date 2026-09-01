@@ -1,4 +1,4 @@
-import type { Quote, SwapResult, TickData, V3PoolState } from '../types.js'
+import type { Quote, SwapResult, SwapStepTrace, TickData, V3PoolState } from '../types.js'
 import {
   MAX_SQRT_RATIO,
   MAX_TICK,
@@ -54,8 +54,14 @@ function windowIsPartial(zeroForOne: boolean, windowMin: number, windowMax: numb
  * token0. Stops early (partial fill) when liquidity or the known tick window
  * runs out instead of reverting.
  */
-export function simulateV3ExactIn(pool: V3PoolState, amountIn: bigint, zeroForOne: boolean): SwapResult {
+export function simulateV3ExactIn(
+  pool: V3PoolState,
+  amountIn: bigint,
+  zeroForOne: boolean,
+  opts: { trace?: boolean } = {},
+): SwapResult {
   if (amountIn < 0n) throw new Error('simulateV3ExactIn: negative amountIn')
+  const trace: SwapStepTrace[] | undefined = opts.trace ? [] : undefined
 
   const windowMin = pool.tickWindow?.min ?? MIN_TICK
   const windowMax = pool.tickWindow?.max ?? MAX_TICK
@@ -98,6 +104,16 @@ export function simulateV3ExactIn(pool: V3PoolState, amountIn: bigint, zeroForOn
         : sqrtPriceNextX96
 
     const step = computeSwapStep(sqrtPriceX96, target, liquidity, remaining, pool.feePips)
+    if (trace && (step.amountIn > 0n || step.feeAmount > 0n)) {
+      trace.push({
+        sqrtStartX96: sqrtPriceX96,
+        sqrtEndX96: step.sqrtRatioNextX96,
+        liquidity,
+        amountIn: step.amountIn,
+        amountOut: step.amountOut,
+        feeAmount: step.feeAmount,
+      })
+    }
     sqrtPriceX96 = step.sqrtRatioNextX96
     remaining -= step.amountIn + step.feeAmount
     amountOut += step.amountOut
@@ -133,7 +149,7 @@ export function simulateV3ExactIn(pool: V3PoolState, amountIn: bigint, zeroForOn
   if (remaining > 0n && steps > MAX_STEPS) exhaustedWindow = true
 
   const consumed = amountIn - remaining
-  return {
+  const result: SwapResult = {
     amountIn: consumed,
     amountOut,
     feeAmount: feeTotal,
@@ -144,6 +160,8 @@ export function simulateV3ExactIn(pool: V3PoolState, amountIn: bigint, zeroForOn
     fillRatio: amountIn === 0n ? 1 : Number(consumed) / Number(amountIn),
     exhaustedWindow,
   }
+  if (trace) result.steps = trace
+  return result
 }
 
 function sqrtToPrice(sqrtPriceX96: bigint): number {

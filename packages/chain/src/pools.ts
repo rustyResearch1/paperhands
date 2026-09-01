@@ -48,9 +48,10 @@ export async function readV3Pool(
   client: ChainClient,
   pool: Address,
   wordRadius = 5,
+  atBlock?: bigint,
 ): Promise<V3PoolSnapshot> {
   const p = { address: pool, abi: v3PoolAbi } as const
-  const blockNumber = await client.getBlockNumber()
+  const blockNumber = atBlock ?? (await client.getBlockNumber())
   const [slot0, liquidity, fee, tickSpacing, token0Addr, token1Addr] = await Promise.all([
     client.readContract({ ...p, functionName: 'slot0', blockNumber }),
     client.readContract({ ...p, functionName: 'liquidity', blockNumber }),

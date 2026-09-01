@@ -1,7 +1,7 @@
 import type { ChainClient } from '@paperhands/chain'
 import type Database from 'better-sqlite3'
 import type { Address } from 'viem'
-import { fetchSwapLogs, resolvePool, type DecodedSwap } from './discover.js'
+import { fetchLiqLogs, fetchSwapLogs, insertLiqEvents, resolvePool, type DecodedSwap } from './discover.js'
 import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, setMeta } from './db.js'
@@ -65,6 +65,7 @@ export class Ingestor {
       if (this.loadPoolCache(pool) === null) unknown.add(pool)
     }
     if (resolveUnknown && unknown.size > 0) {
+      const liqFrom = getMeta(this.db, 'liq_from')
       const queue = [...unknown]
       const workers = Array.from({ length: Math.min(8, queue.length) }, async () => {
         for (let pool = queue.pop(); pool; pool = queue.pop()) {
@@ -72,6 +73,23 @@ export class Ingestor {
           if (row) {
             newPools++
             this.invalidate(pool)
+            // A pool discovered after the liq backfill is missing its
+            // Mint/Burn history — fetch it per-address so reconstruction
+            // stays complete.
+            if (liqFrom) {
+              try {
+                const events = await fetchLiqLogs(
+                  this.client,
+                  BigInt(liqFrom),
+                  swaps[swaps.length - 1]!.block,
+                  100_000n,
+                  pool as Address,
+                )
+                insertLiqEvents(this.db, events)
+              } catch (err) {
+                console.error(`liq catchup failed for ${pool}:`, (err as Error).message.split('\n')[0])
+              }
+            }
           }
         }
       })
@@ -79,8 +97,8 @@ export class Ingestor {
     }
 
     const insertSwap = this.db.prepare(
-      `INSERT OR IGNORE INTO swaps(tx_hash, log_index, pool, block, ts, amount0, amount1, sqrt_price_x96, tick)
-       VALUES(?,?,?,?,?,?,?,?,?)`,
+      `INSERT OR IGNORE INTO swaps(tx_hash, log_index, pool, block, ts, amount0, amount1, sqrt_price_x96, tick, liquidity)
+       VALUES(?,?,?,?,?,?,?,?,?,?)`,
     )
     const updatePool = this.db.prepare(
       `UPDATE pools SET last_swap_block=?, last_sqrt_price=?, last_tick=?, last_liquidity=?, swap_count=swap_count+1
@@ -114,6 +132,7 @@ export class Ingestor {
           s.amount1.toString(),
           s.sqrtPriceX96.toString(),
           s.tick,
+          s.liquidity.toString(),
         )
         // Replays (crash before cursor save, or a discover re-sweep) must not
         // double-count candles or swap totals — only a genuinely new swap row
@@ -197,6 +216,10 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         const to = latest - cursor > 5000n ? cursor + 5000n : latest
         const swaps = await fetchSwapLogs(client, cursor + 1n, to)
         const { ingested, newPools } = await ingestor.ingest(swaps)
+        if (getMeta(db, 'liq_from')) {
+          const liqEvents = await fetchLiqLogs(client, cursor + 1n, to)
+          insertLiqEvents(db, liqEvents)
+        }
         const enriched = await ingestor.enrichTraders(60)
         const tailFills = await executeTails(client, db)
         if (tailFills > 0) console.log(`watch: mirrored ${tailFills} tail fill(s)`)

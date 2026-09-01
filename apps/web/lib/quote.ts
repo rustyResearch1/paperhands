@@ -8,6 +8,7 @@ const g = globalThis as unknown as {
   __phsnaps?: Map<string, { snap: V3PoolSnapshot; at: number }>
 }
 const client = (g.__phclient ??= makeClient())
+export const chainClient = client
 const snaps = (g.__phsnaps ??= new Map())
 
 const SNAP_TTL_MS = 15_000

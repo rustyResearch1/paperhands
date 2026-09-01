@@ -36,6 +36,29 @@ export const v3PoolAbi = [
   { type: 'function', name: 'token0', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   { type: 'function', name: 'token1', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   {
+    type: 'event', name: 'Mint',
+    inputs: [
+      { type: 'address', name: 'sender', indexed: false },
+      { type: 'address', name: 'owner', indexed: true },
+      { type: 'int24', name: 'tickLower', indexed: true },
+      { type: 'int24', name: 'tickUpper', indexed: true },
+      { type: 'uint128', name: 'amount', indexed: false },
+      { type: 'uint256', name: 'amount0', indexed: false },
+      { type: 'uint256', name: 'amount1', indexed: false },
+    ],
+  },
+  {
+    type: 'event', name: 'Burn',
+    inputs: [
+      { type: 'address', name: 'owner', indexed: true },
+      { type: 'int24', name: 'tickLower', indexed: true },
+      { type: 'int24', name: 'tickUpper', indexed: true },
+      { type: 'uint128', name: 'amount', indexed: false },
+      { type: 'uint256', name: 'amount0', indexed: false },
+      { type: 'uint256', name: 'amount1', indexed: false },
+    ],
+  },
+  {
     type: 'event', name: 'Swap',
     inputs: [
       { type: 'address', name: 'sender', indexed: true },

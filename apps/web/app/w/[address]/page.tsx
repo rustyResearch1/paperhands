@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import ReplayLab from '@/components/ReplayLab'
 import TailForm from '@/components/TailForm'
 import { db } from '@/lib/db'
 import { timeAgo } from '@/lib/format'
@@ -130,10 +131,12 @@ export default async function WalletPage({ params }: { params: Promise<{ address
             wallet={address}
             activeSize={tail?.active ? tail.size_quote : null}
           />
+          <ReplayLab wallet={address} />
           <p className="rule-label">
             tailing mirrors this wallet with YOUR size through the same honest engine: their buy triggers
             your fixed-size buy; their sell in a pool exits your whole tailed position. fills land as the
-            indexer sees their swaps — you eat your own slippage, not theirs.
+            indexer sees their swaps — you eat your own slippage, not theirs. run the replay first to see
+            whether copying them ever paid.
           </p>
         </div>
       </div>

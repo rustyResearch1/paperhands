@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Chart from '@/components/Chart'
+import LpLab from '@/components/LpLab'
 import TradeTicket from '@/components/TradeTicket'
 import { db } from '@/lib/db'
 import { formatEth, formatPrice, formatQty, timeAgo } from '@/lib/format'
@@ -158,6 +159,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
             balanceWei={user.balance_quote}
             positionQty={position?.qty ?? '0'}
           />
+          <LpLab pool={pool} />
           <p className="rule-label">
             <Link href="/" className="text-pen hover:underline">
               ← back to the book

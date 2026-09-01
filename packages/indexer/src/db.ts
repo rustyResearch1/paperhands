@@ -118,6 +118,21 @@ function migrate(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS paper_trades_user ON paper_trades(user_id, ts);
 
+    -- Mint/Burn liquidity deltas, for historical pool-state reconstruction
+    CREATE TABLE IF NOT EXISTS liq_events (
+      tx_hash TEXT NOT NULL,
+      log_index INTEGER NOT NULL,
+      pool TEXT NOT NULL,
+      block INTEGER NOT NULL,
+      -- +1 mint, -1 burn
+      kind INTEGER NOT NULL,
+      tick_lower INTEGER NOT NULL,
+      tick_upper INTEGER NOT NULL,
+      amount TEXT NOT NULL,
+      PRIMARY KEY (tx_hash, log_index)
+    );
+    CREATE INDEX IF NOT EXISTS liq_pool_block ON liq_events(pool, block);
+
     -- KOL tailing: mirror a wallet's buys with a fixed size, exit when it exits
     CREATE TABLE IF NOT EXISTS kol_tails (
       user_id TEXT NOT NULL,
@@ -134,6 +149,13 @@ function migrate(db: Database.Database) {
   const tradeCols = db.prepare(`PRAGMA table_info(paper_trades)`).all() as { name: string }[]
   if (!tradeCols.some((c) => c.name === 'source')) {
     db.exec(`ALTER TABLE paper_trades ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`)
+  }
+  // Post-swap in-range liquidity from the Swap event — the anchor for
+  // historical state reconstruction. NULL on rows ingested before this
+  // column existed until liq-backfill fills them.
+  const swapCols = db.prepare(`PRAGMA table_info(swaps)`).all() as { name: string }[]
+  if (!swapCols.some((c) => c.name === 'liquidity')) {
+    db.exec(`ALTER TABLE swaps ADD COLUMN liquidity TEXT`)
   }
 }
 

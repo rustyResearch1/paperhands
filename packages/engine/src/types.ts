@@ -30,6 +30,18 @@ export interface V3PoolState {
   tickWindow?: { min: number; max: number }
 }
 
+/** One computeSwapStep segment, for fee attribution in replays. */
+export interface SwapStepTrace {
+  sqrtStartX96: bigint
+  sqrtEndX96: bigint
+  /** In-range liquidity the step executed against. */
+  liquidity: bigint
+  amountIn: bigint
+  amountOut: bigint
+  /** LP fee for this step, denominated in the input token. */
+  feeAmount: bigint
+}
+
 export interface SwapResult {
   /** Input consumed, including fee. */
   amountIn: bigint
@@ -47,6 +59,8 @@ export interface SwapResult {
   fillRatio: number
   /** True when the swap walked past the known tick window — result is a floor, not exact. */
   exhaustedWindow: boolean
+  /** Per-step breakdown, present when the simulation was run with trace on. */
+  steps?: SwapStepTrace[]
 }
 
 export interface Quote extends SwapResult {
