@@ -17,11 +17,16 @@ export interface ScreenerRow {
   close30m: number | null
   vol24: number
   trades24: number
+  /** Volume in the last 30 minutes vs the 30 minutes before — traction. */
+  vol30: number
+  vol30prev: number
 }
 
-export function screenerRows(limit = 100): ScreenerRow[] {
+export type ScreenerSort = 'vol' | 'traction' | 'change5m' | 'change30m' | 'trades' | 'depth'
+
+export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEth = 0): ScreenerRow[] {
   const now = Math.floor(Date.now() / 1000)
-  return db
+  const rows = db
     .prepare(
       `SELECT p.address, p.fee, p.base_is_token0, p.factory_verified, p.last_sqrt_price, p.last_liquidity, p.swap_count,
         tb.symbol AS baseSymbol, tb.name AS baseName, tb.decimals AS baseDecimals, tb.address AS baseAddr,
@@ -29,14 +34,37 @@ export function screenerRows(limit = 100): ScreenerRow[] {
         (SELECT close FROM candles c WHERE c.pool = p.address AND c.minute_ts <= @t5 ORDER BY minute_ts DESC LIMIT 1) AS close5m,
         (SELECT close FROM candles c WHERE c.pool = p.address AND c.minute_ts <= @t30 ORDER BY minute_ts DESC LIMIT 1) AS close30m,
         (SELECT COALESCE(SUM(vol_quote), 0) FROM candles c WHERE c.pool = p.address AND c.minute_ts > @t24h) AS vol24,
-        (SELECT COALESCE(SUM(trades), 0) FROM candles c WHERE c.pool = p.address AND c.minute_ts > @t24h) AS trades24
+        (SELECT COALESCE(SUM(trades), 0) FROM candles c WHERE c.pool = p.address AND c.minute_ts > @t24h) AS trades24,
+        (SELECT COALESCE(SUM(vol_quote), 0) FROM candles c WHERE c.pool = p.address AND c.minute_ts > @t30) AS vol30,
+        (SELECT COALESCE(SUM(vol_quote), 0) FROM candles c WHERE c.pool = p.address AND c.minute_ts > @t60 AND c.minute_ts <= @t30) AS vol30prev
       FROM pools p
       JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
       WHERE p.base_is_token0 IS NOT NULL
       ORDER BY vol24 DESC
-      LIMIT @limit`,
+      LIMIT 400`,
     )
-    .all({ t5: now - 300, t30: now - 1800, t24h: now - 86400, limit }) as ScreenerRow[]
+    .all({ t5: now - 300, t30: now - 1800, t60: now - 3600, t24h: now - 86400 }) as ScreenerRow[]
+
+  const filtered = minDepthEth > 0 ? rows.filter((r) => ethDepth(r) >= minDepthEth) : rows
+  const key: Record<ScreenerSort, (r: ScreenerRow) => number> = {
+    vol: (r) => r.vol24,
+    traction: (r) => tractionScore(r),
+    change5m: (r) => pctChange(r.lastClose, r.close5m) ?? -Infinity,
+    change30m: (r) => pctChange(r.lastClose, r.close30m) ?? -Infinity,
+    trades: (r) => r.trades24,
+    depth: (r) => ethDepth(r),
+  }
+  return filtered.sort((a, b) => key[sort](b) - key[sort](a)).slice(0, limit)
+}
+
+/**
+ * Traction = volume acceleration, damped by absolute size so a 0.01→0.1 ETH
+ * blip doesn't outrank a 20→60 ETH surge: log-volume times the accel ratio.
+ */
+export function tractionScore(r: Pick<ScreenerRow, 'vol30' | 'vol30prev'>): number {
+  if (r.vol30 <= 0) return -Infinity
+  const accel = r.vol30 / Math.max(r.vol30prev, 0.05)
+  return Math.log10(1 + r.vol30) * Math.min(accel, 50)
 }
 
 /** Virtual in-range ETH-side depth of a pool, from its cached state. */
