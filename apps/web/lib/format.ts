@@ -25,6 +25,15 @@ export function formatPrice(p: number): string {
   return `0.0${sub}${mantissa}`
 }
 
+/** Dollar formatting across twelve orders of magnitude: $0.0₅1234 to $106M. */
+export function formatUsd(v: number): string {
+  if (!Number.isFinite(v) || v <= 0) return '—'
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`
+  if (v >= 10_000) return `$${(v / 1000).toFixed(1)}K`
+  if (v >= 1) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+  return `$${formatPrice(v)}`
+}
+
 export function formatEth(wei: bigint, digits = 4): string {
   const eth = Number(wei) / 1e18
   if (Math.abs(eth) >= 1000) return eth.toLocaleString('en-US', { maximumFractionDigits: 1 })

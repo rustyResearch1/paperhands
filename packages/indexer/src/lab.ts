@@ -92,8 +92,11 @@ export async function lpBacktest(
   let feeEvents = 0
   let finalState: import('@paperhands/engine').V3PoolState | undefined
 
+  const extraLiquidity = { tickLower: 0, tickUpper: 0, amount: 0n }
   const stats = await replayPool(client, db, p.pool, p.fromBlock, p.toBlock, {
     trace: true,
+    snapToRecorded: true,
+    extraLiquidity,
     onStart(controls) {
       const s = controls.state
       // ±rangePct in price → ticks (price ratio r ↔ tick ln(r)/ln(1.0001))
@@ -117,6 +120,9 @@ export async function lpBacktest(
       entryAmounts = getAmountsForLiquidity(s.sqrtPriceX96, sqrtLower, sqrtUpper, liquidity)
       entryPrice = basePriceInQuote(s.sqrtPriceX96, baseIsToken0, meta.baseDecimals, meta.quoteDecimals)
       applyLiquidityDelta(s, tickLower, tickUpper, liquidity)
+      extraLiquidity.tickLower = tickLower
+      extraLiquidity.tickUpper = tickUpper
+      extraLiquidity.amount = liquidity
       finalState = s // stable reference; replayPool mutates it in place
     },
     onSwap(row, sim) {
@@ -234,7 +240,18 @@ export async function walletReplay(
     let buys = 0
     let sells = 0
 
-    const stats = await replayPool(client, db, pool, fromBlock, toBlock, {
+    // A pool discovered mid-window has no state anchor before its first
+    // recorded swap — clamp the replay start to it.
+    const firstSwap = db
+      .prepare('SELECT MIN(block) AS b FROM swaps WHERE pool = ?')
+      .get(pool) as { b: number | null }
+    if (!firstSwap.b) continue
+    const poolFrom = Math.max(fromBlock, firstSwap.b)
+
+    let stats
+    try {
+      stats = await replayPool(client, db, pool, poolFrom, toBlock, {
+      snapToRecorded: true,
       onSwap(row, _sim, controls) {
         if (row.trader !== w) return
         const ethAmt = BigInt(baseIsToken0 ? row.amount1 : row.amount0)
@@ -257,6 +274,9 @@ export async function walletReplay(
         }
       },
     })
+    } catch {
+      continue // one broken pool must not kill the whole replay
+    }
     firstTs = firstTs === 0 ? stats.firstTs : Math.min(firstTs, stats.firstTs || firstTs)
     lastTs = Math.max(lastTs, stats.lastTs)
 

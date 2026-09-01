@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import { formatPrice, formatPct } from '@/lib/format'
-import { ethDepth, pctChange, screenerRows, tractionScore, type ScreenerSort } from '@/lib/screener'
+import { formatPrice, formatPct, formatUsd } from '@/lib/format'
+import { ethDepth, pctChange, screenerRows, type ScreenerSort } from '@/lib/screener'
+import { ethUsdRate } from '@/lib/usd'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,14 +31,17 @@ function Traction({ vol30, vol30prev }: { vol30: number; vol30prev: number }) {
 export default async function Screener({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; safe?: string }>
+  searchParams: Promise<{ sort?: string; safe?: string; ccy?: string }>
 }) {
   const params = await searchParams
   const sort = (SORTS.some((s) => s.key === params.sort) ? params.sort : 'vol') as ScreenerSort
   const safe = params.safe !== '0'
+  const rate = params.ccy === 'eth' ? null : ethUsdRate()
+  const usd = rate !== null
   const rows = screenerRows(80, sort, safe ? 3 : 0).filter((r) => !safe || r.factory_verified === 1)
 
-  const link = (s: ScreenerSort) => `/?sort=${s}${safe ? '' : '&safe=0'}`
+  const link = (s: ScreenerSort) => `/?sort=${s}${safe ? '' : '&safe=0'}${usd ? '' : '&ccy=eth'}`
+  const money = (eth: number) => (usd ? formatUsd(eth * rate) : eth.toLocaleString('en-US', { maximumFractionDigits: 2 }))
 
   return (
     <div>
@@ -50,12 +54,18 @@ export default async function Screener({
         </h1>
         <span className="rule-label">
           <Link
-            href={`/?sort=${sort}${safe ? '&safe=0' : ''}`}
-            className={`border px-2 py-0.5 ${safe ? 'border-ink bg-marker/30 text-ink font-bold' : 'border-grid text-graphite'}`}
+            href={`/?sort=${sort}${safe ? '' : '&safe=0'}${usd ? '&ccy=eth' : ''}`}
+            className="border border-grid px-2 py-0.5 hover:border-ink"
+          >
+            {usd ? `USD @ $${Math.round(rate).toLocaleString('en-US')}/ETH` : 'ETH'} ⇄
+          </Link>
+          <Link
+            href={`/?sort=${sort}${safe ? '&safe=0' : ''}${usd ? '' : '&ccy=eth'}`}
+            className={`ml-2 border px-2 py-0.5 ${safe ? 'border-ink bg-marker/30 text-ink font-bold' : 'border-grid text-graphite'}`}
           >
             {safe ? 'rug filter ON' : 'rug filter off'}
           </Link>
-          <span className="ml-2">verified pools · ≥3 ETH depth</span>
+          <span className="ml-2">verified · ≥3 ETH depth</span>
         </span>
       </div>
 
@@ -71,7 +81,7 @@ export default async function Screener({
             <thead>
               <tr>
                 <th>token</th>
-                <th>price (ETH)</th>
+                <th>price {usd ? '(USD)' : '(ETH)'}</th>
                 {SORTS.map((s) => (
                   <th key={s.key}>
                     <Link
@@ -98,11 +108,11 @@ export default async function Screener({
                         <span className="text-faint text-[11px] max-w-36 truncate inline-block align-bottom">{r.baseName}</span>
                       </Link>
                     </td>
-                    <td>{formatPrice(r.lastClose ?? 0)}</td>
+                    <td>{usd ? formatUsd((r.lastClose ?? 0) * rate) : formatPrice(r.lastClose ?? 0)}</td>
                     <td>
                       <Traction vol30={r.vol30} vol30prev={r.vol30prev} />
                     </td>
-                    <td>{r.vol24.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
+                    <td>{money(r.vol24)}</td>
                     <td>
                       <Change value={pctChange(r.lastClose, r.close5m)} />
                     </td>
@@ -111,7 +121,7 @@ export default async function Screener({
                     </td>
                     <td>{r.trades24.toLocaleString('en-US')}</td>
                     <td className={depth < 5 ? 'text-down font-semibold' : depth < 25 ? 'text-graphite' : ''}>
-                      {depth ? depth.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'}
+                      {depth ? money(depth) : '—'}
                     </td>
                     <td className="text-graphite">{(r.fee / 10000).toFixed(2)}%</td>
                     <td>

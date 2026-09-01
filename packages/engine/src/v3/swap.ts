@@ -122,9 +122,16 @@ export function simulateV3ExactIn(
     if (sqrtPriceX96 === sqrtPriceNextX96) {
       if (next) {
         const net = pool.ticks[next.index]!.liquidityNet
-        liquidity += zeroForOne ? -net : net
+        const crossed = liquidity + (zeroForOne ? -net : net)
+        if (crossed < 0n) {
+          // A cross that would go negative means the tick table is wrong
+          // beyond this point (stale or partial data). Same contract as
+          // walking off the window: stop, report a floor, never invent.
+          exhaustedWindow = true
+          break
+        }
+        liquidity = crossed
         ticksCrossed++
-        if (liquidity < 0n) throw new Error('simulateV3ExactIn: negative liquidity after cross')
       }
       tick = zeroForOne ? tickNext - 1 : tickNext
       if (!next) {

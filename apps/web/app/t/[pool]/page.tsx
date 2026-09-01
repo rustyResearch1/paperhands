@@ -4,7 +4,8 @@ import Chart from '@/components/Chart'
 import LpLab from '@/components/LpLab'
 import TradeTicket from '@/components/TradeTicket'
 import { db } from '@/lib/db'
-import { formatEth, formatPrice, formatQty, timeAgo } from '@/lib/format'
+import { formatEth, formatPrice, formatQty, formatUsd, timeAgo } from '@/lib/format'
+import { ethUsdRate } from '@/lib/usd'
 import { poolMeta, ticketQuote } from '@/lib/quote'
 import { ethDepth } from '@/lib/screener'
 import { getOrCreateUser } from '@/lib/session'
@@ -60,6 +61,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
   const mark = lastClose && qty > 0n ? (Number(qty) / 10 ** meta.baseDecimals) * lastClose : null
   const cost = BigInt(position?.cost_quote ?? '0')
 
+  const usdRate = ethUsdRate()
   const tape = db
     .prepare('SELECT ts, amount0, amount1, trader, tx_hash FROM swaps WHERE pool = ? ORDER BY block DESC, log_index DESC LIMIT 25')
     .all(pool) as SwapRow[]
@@ -71,6 +73,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
       <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-xl font-bold">{meta.baseSymbol}</h1>
         <span className="text-lg tabular-nums">{formatPrice(lastClose ?? 0)} ETH</span>
+        {usdRate && lastClose ? <span className="text-graphite tabular-nums">{formatUsd(lastClose * usdRate)}</span> : null}
         <span className="rule-label">
           fee {(meta.fee / 10000).toFixed(2)}% · depth {depth.toLocaleString('en-US', { maximumFractionDigits: 1 })} ETH ·{' '}
           {poolRow.swap_count.toLocaleString()} swaps tracked

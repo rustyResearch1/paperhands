@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { db } from '@/lib/db'
-import { formatEth, formatQty } from '@/lib/format'
+import { formatEth, formatQty, formatUsd } from '@/lib/format'
+import { ethUsdRate } from '@/lib/usd'
 import { ticketQuote } from '@/lib/quote'
 import { getOrCreateUser } from '@/lib/session'
 
@@ -45,6 +46,7 @@ export default async function Portfolio() {
     }),
   )
 
+  const usdRate = ethUsdRate()
   const balance = BigInt(user.balance_quote)
   const realizableSum = enriched.reduce((acc, r) => acc + (r.realizable ?? 0n), 0n)
   const equity = balance + realizableSum
@@ -68,7 +70,10 @@ export default async function Portfolio() {
         </div>
         <div>
           <div className="rule-label">equity</div>
-          <div className={`font-bold text-base ${equity >= start ? 'text-up' : 'text-down'}`}>{formatEth(equity)} ETH</div>
+          <div className={`font-bold text-base ${equity >= start ? 'text-up' : 'text-down'}`}>
+            {formatEth(equity)} ETH
+            {usdRate ? <span className="text-graphite font-normal text-[12px] ml-2">{formatUsd((Number(equity) / 1e18) * usdRate)}</span> : null}
+          </div>
         </div>
         <div>
           <div className="rule-label">vs 10 ETH start</div>

@@ -82,6 +82,13 @@ async function mirrorSwap(
   let amountIn: bigint
   if (kolBought) {
     amountIn = BigInt(tail.size_quote)
+    // Bankroll floor: an active whale-tail must not spend the account to
+    // dust — keep a reserve so manual trading stays possible.
+    const RESERVE = 10n ** 18n / 2n
+    const bal = db.prepare('SELECT balance_quote FROM users WHERE id = ?').get(tail.user_id) as
+      | { balance_quote: string }
+      | undefined
+    if (!bal || BigInt(bal.balance_quote) < amountIn + RESERVE) return false
   } else {
     const pos = db
       .prepare('SELECT qty FROM positions WHERE user_id = ? AND pool = ?')

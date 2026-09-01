@@ -24,7 +24,13 @@ export interface ScreenerRow {
 
 export type ScreenerSort = 'vol' | 'traction' | 'change5m' | 'change30m' | 'trades' | 'depth'
 
+let rowCache: { rows: ScreenerRow[]; at: number } | null = null
+
 export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEth = 0): ScreenerRow[] {
+  // One heavy candle-aggregate query per 5s regardless of visitors/sorts.
+  if (rowCache && Date.now() - rowCache.at < 5000) {
+    return sortAndTrim(rowCache.rows, limit, sort, minDepthEth)
+  }
   const now = Math.floor(Date.now() / 1000)
   const rows = db
     .prepare(
@@ -44,7 +50,11 @@ export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEt
       LIMIT 400`,
     )
     .all({ t5: now - 300, t30: now - 1800, t60: now - 3600, t24h: now - 86400 }) as ScreenerRow[]
+  rowCache = { rows, at: Date.now() }
+  return sortAndTrim(rows, limit, sort, minDepthEth)
+}
 
+function sortAndTrim(rows: ScreenerRow[], limit: number, sort: ScreenerSort, minDepthEth: number): ScreenerRow[] {
   const filtered = minDepthEth > 0 ? rows.filter((r) => ethDepth(r) >= minDepthEth) : rows
   const key: Record<ScreenerSort, (r: ScreenerRow) => number> = {
     vol: (r) => r.vol24,
@@ -54,7 +64,7 @@ export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEt
     trades: (r) => r.trades24,
     depth: (r) => ethDepth(r),
   }
-  return filtered.sort((a, b) => key[sort](b) - key[sort](a)).slice(0, limit)
+  return [...filtered].sort((a, b) => key[sort](b) - key[sort](a)).slice(0, limit)
 }
 
 /**

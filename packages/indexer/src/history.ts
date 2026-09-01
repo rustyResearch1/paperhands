@@ -1,7 +1,5 @@
 import { readV3Pool, type ChainClient } from '@paperhands/chain'
 import {
-  MAX_TICK,
-  MIN_TICK,
   getAmountsForLiquidity,
   getSqrtRatioAtTick,
   simulateV3ExactIn,
@@ -59,15 +57,16 @@ export function applyLiquidityDelta(
   tickUpper: number,
   delta: bigint,
 ): void {
-  upsertTickNet(state.ticks, tickLower, delta)
-  upsertTickNet(state.ticks, tickUpper, -delta)
+  // A bound outside the snapshot's tick window must NOT create an entry or
+  // widen the window: the region beyond it holds unknown other ticks, and a
+  // lone "known" tick there lets the walker cross half a tick set — the
+  // window boundary is the honest edge of knowledge.
+  const win = state.tickWindow
+  if (!win || (tickLower >= win.min && tickLower <= win.max)) upsertTickNet(state.ticks, tickLower, delta)
+  if (!win || (tickUpper >= win.min && tickUpper <= win.max)) upsertTickNet(state.ticks, tickUpper, -delta)
   if (tickLower <= state.tick && state.tick < tickUpper) {
     state.liquidity += delta
     if (state.liquidity < 0n) throw new Error('replay: in-range liquidity went negative')
-  }
-  if (state.tickWindow) {
-    if (tickLower < state.tickWindow.min) state.tickWindow.min = Math.max(tickLower, MIN_TICK)
-    if (tickUpper > state.tickWindow.max) state.tickWindow.max = Math.min(tickUpper, MAX_TICK)
   }
 }
 
@@ -117,18 +116,22 @@ export async function reconstructAt(
   }
   if (snap.state.tickWindow) state.tickWindow = { ...snap.state.tickWindow }
 
-  // Reverse every liquidity delta that happened after atBlock (order-free: additive).
+  // Reverse every liquidity delta that happened after atBlock (order-free:
+  // additive). Bounds outside the snapshot window are skipped — the window
+  // stays the honest edge of knowledge (see applyLiquidityDelta).
+  const win = state.tickWindow
+  // Upper-bounded at the pinned cursor: the live watcher keeps inserting
+  // events beyond it while our snapshot RPC runs, and reverse-applying
+  // those would patch changes the snapshot never contained.
   const later = db
-    .prepare('SELECT block, log_index, kind, tick_lower, tick_upper, amount FROM liq_events WHERE pool = ? AND block > ?')
-    .all(poolKey, atBlock) as LiqRow[]
+    .prepare(
+      'SELECT block, log_index, kind, tick_lower, tick_upper, amount FROM liq_events WHERE pool = ? AND block > ? AND block <= ?',
+    )
+    .all(poolKey, atBlock, cursor) as LiqRow[]
   for (const e of later) {
     const delta = BigInt(e.kind) * BigInt(e.amount)
-    upsertTickNet(state.ticks, e.tick_lower, -delta)
-    upsertTickNet(state.ticks, e.tick_upper, delta)
-    if (state.tickWindow) {
-      if (e.tick_lower < state.tickWindow.min) state.tickWindow.min = e.tick_lower
-      if (e.tick_upper > state.tickWindow.max) state.tickWindow.max = e.tick_upper
-    }
+    if (!win || (e.tick_lower >= win.min && e.tick_lower <= win.max)) upsertTickNet(state.ticks, e.tick_lower, -delta)
+    if (!win || (e.tick_upper >= win.min && e.tick_upper <= win.max)) upsertTickNet(state.ticks, e.tick_upper, delta)
   }
 
   // Price/tick/in-range L anchor on the last recorded swap at or before atBlock.
@@ -179,8 +182,15 @@ export interface ReplayHandlers {
   onSwap?(row: SwapEventRow, sim: SwapResult, controls: ReplayControls): void
   /** Simulate with per-step trace (needed for LP fee attribution). */
   trace?: boolean
-  /** After each swap, force state to the recorded post-swap price (validate mode). */
+  /**
+   * After each recorded swap, re-anchor state to the recorded post-swap
+   * price/tick/liquidity. Bounds counterfactual drift to within one swap —
+   * without it, virtual orders shift the price path and recorded liquidity
+   * events eventually apply against inconsistent state.
+   */
   snapToRecorded?: boolean
+  /** A virtual position whose liquidity rides on top of recorded state when snapping. */
+  extraLiquidity?: { tickLower: number; tickUpper: number; amount: bigint }
 }
 
 export interface ReplayStats {
@@ -250,7 +260,15 @@ export async function replayPool(
     const input = zeroForOne ? a0 : a1
     const recordedOut = zeroForOne ? -a1 : -a0
 
-    const sim = simulateV3ExactIn(state, input, zeroForOne, { trace: handlers.trace ?? false })
+    let sim: SwapResult
+    try {
+      sim = simulateV3ExactIn(state, input, zeroForOne, { trace: handlers.trace ?? false })
+    } catch (err) {
+      const near = state.ticks.filter((t) => Math.abs(t.tick - state.tick) < 60).map((t) => `${t.tick}:${t.liquidityNet}`)
+      throw new Error(
+        `${(err as Error).message} @ swap block=${s.block} tx=${s.tx_hash} tick=${state.tick} L=${state.liquidity} in=${input} z41=${zeroForOne} nearTicks=[${near.join(' ')}]`,
+      )
+    }
     state.sqrtPriceX96 = sim.sqrtPriceX96After
     state.tick = sim.tickAfter
     state.liquidity = sim.liquidityAfter
@@ -264,7 +282,12 @@ export async function replayPool(
     if (handlers.snapToRecorded) {
       state.sqrtPriceX96 = BigInt(s.sqrt_price_x96)
       state.tick = s.tick
-      if (s.liquidity !== null) state.liquidity = BigInt(s.liquidity)
+      if (s.liquidity !== null) {
+        let L = BigInt(s.liquidity)
+        const extra = handlers.extraLiquidity
+        if (extra && extra.tickLower <= s.tick && s.tick < extra.tickUpper) L += extra.amount
+        state.liquidity = L
+      }
     }
 
     handlers.onSwap?.(s, sim, controls)
