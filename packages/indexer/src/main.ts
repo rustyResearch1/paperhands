@@ -143,6 +143,17 @@ async function replayValidate(poolArg?: string) {
 if (cmd === 'discover') {
   await discover()
   process.exit(0)
+} else if (cmd === 'content') {
+  const { generateContentPack } = await import('./content.js')
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const md = await generateContentPack(client, db)
+  const dir = new URL('../../../content/', import.meta.url).pathname
+  mkdirSync(dir, { recursive: true })
+  const file = `${dir}${new Date().toISOString().slice(0, 10)}.md`
+  writeFileSync(file, md)
+  console.log(md)
+  console.log(`\nsaved: ${file}`)
+  process.exit(0)
 } else if (cmd === 'liq-backfill') {
   await liqBackfill()
   process.exit(0)
