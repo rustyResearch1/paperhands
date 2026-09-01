@@ -116,6 +116,37 @@ the same honest engine — their buy triggers your fixed-size buy, their sell ex
 tailed position. You eat *your* slippage at *your* size, which is exactly the lesson:
 copying a whale's entries is not copying their exits.
 
+## The Lab — time travel, proven against the chain
+
+The indexer stores every Swap and every Mint/Burn, so any pool's **full state at any
+past block** can be reconstructed (live snapshot, reverse-patched by liquidity deltas,
+anchored on recorded in-range liquidity). Replays then re-execute recorded swap inputs
+through the engine — which makes the whole thing self-validating: simulated outputs must
+reproduce what actually happened on-chain. Measured on live pools:
+
+```
+USDG/WETH   1,996 swaps,  6 liq events — amountOut exact 98.4%
+JUGGERNAUT    239 swaps, 52 liq events — amountOut exact 99.2%
+(residual mismatches are wei-level rounding on trades that executed exact-output)
+```
+
+Two counterfactual instruments ship on top, both **parallel-universe honest** (your
+virtual position or orders are added to the pool, so you pay your own impact and earn
+only your own share):
+
+- **LP Lab** (token pages) — would providing liquidity have paid? Pick a range and
+  deposit; every recorded swap re-executes through your position; you get fees earned,
+  impermanent loss, net-vs-hodl and the run-rate. First live run: 1 ETH ±30% on
+  JUGGERNAUT earned 61bps in 1.5h of sideways chop (~3,500% APR) — and the same tool
+  will happily tell you when fees did NOT cover the bleed.
+- **Replay Lab** (wallet pages) — would tailing this wallet have worked *at your size*?
+  Mirrors its recorded entries/exits through history; leftovers exit realizable. First
+  live run: a whale up +2.7 ETH real — copying it at 0.25 ETH/buy lost money.
+
+Commands: `main.ts liq-backfill` (resumable) · `main.ts replay-validate [pool]`.
+The watch loop must run continuously — reconstruction needs unbroken event coverage,
+and the replay floor advances if it gaps.
+
 ## Roadmap
 
 - **Tail replay** — run a wallet's past month through your bankroll size before tailing it.

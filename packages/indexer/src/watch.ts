@@ -213,7 +213,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
       if (ingestor.clock.needsSync()) await ingestor.clock.sync()
       const latest = await client.getBlockNumber()
       if (latest > cursor) {
-        const to = latest - cursor > 5000n ? cursor + 5000n : latest
+        const to = latest - cursor > 20_000n ? cursor + 20_000n : latest
         const swaps = await fetchSwapLogs(client, cursor + 1n, to)
         const { ingested, newPools } = await ingestor.ingest(swaps)
         if (getMeta(db, 'liq_from')) {

@@ -102,6 +102,14 @@ export async function reconstructAt(
   const cursor = Number(cursorStr)
   if (atBlock > cursor) throw new Error(`cursor at ${cursor}; asked for future block ${atBlock}`)
 
+  // The snapshot must be pinned to the cursor so liq_events coverage aligns,
+  // and full nodes only serve recent state — a lagging watch loop breaks both.
+  const head = Number(await client.getBlockNumber())
+  if (head - cursor > 2000) {
+    throw new Error(
+      `indexer cursor lags the chain head by ${head - cursor} blocks — start the watch loop and let it catch up`,
+    )
+  }
   const snap = await readV3Pool(client, poolKey as Address, 12, BigInt(cursor))
   const state: V3PoolState = {
     ...snap.state,
