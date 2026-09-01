@@ -89,8 +89,23 @@ pnpm --filter @paperhands/chain validate   # engine vs on-chain QuoterV2
 ```
 
 No wallet, no keys, no funds. The only network dependency is the public RPC
-(`rpc.mainnet.chain.robinhood.com`). Override with `PAPERHANDS_DB` / a custom RPC url in
-`packages/chain/src/addresses.ts`.
+(`rpc.mainnet.chain.robinhood.com`). Env overrides: `PAPERHANDS_DB` (SQLite path) and
+`PAPERHANDS_RPC` (use a dedicated Alchemy/QuickNode endpoint in production — the public
+RPC rate-limits).
+
+## Deploy
+
+One box runs everything (the indexer must run continuously — replay history depends on
+unbroken event coverage). The repo ships a `Dockerfile` + `railway.json`:
+
+```bash
+railway up          # from the repo root; add a volume mounted at /data
+```
+
+Set `PAPERHANDS_RPC` to a dedicated endpoint. The web terminal serves on `$PORT`, the
+indexer discovers, watches, attributes, and mirrors tails in the same container, and
+the ledger lives on the volume. (Vercel + Postgres split is the scale-up path — the
+SQLite one-box is deliberate for v0.)
 
 ## How a fill actually works here
 

@@ -13,7 +13,7 @@ export const robinhoodChain = defineChain({
   },
 })
 
-export function makeClient(rpcUrl = RPC_URL): PublicClient {
+export function makeClient(rpcUrl = process.env.PAPERHANDS_RPC ?? RPC_URL): PublicClient {
   return createPublicClient({
     chain: robinhoodChain,
     // The public RPC mishandles JSON-RPC batch arrays, so batching stays off.
