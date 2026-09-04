@@ -154,6 +154,10 @@ if (cmd === 'discover') {
   console.log(md)
   console.log(`\nsaved: ${file}`)
   process.exit(0)
+} else if (cmd === 'backup') {
+  const { runBackup } = await import('./backup.js')
+  await runBackup(db, db.name)
+  process.exit(0)
 } else if (cmd === 'liq-backfill') {
   await liqBackfill()
   process.exit(0)

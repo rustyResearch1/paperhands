@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import AccountKey from '@/components/AccountKey'
 import { db } from '@/lib/db'
 import { formatEth, formatQty, formatUsd } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
@@ -161,6 +162,7 @@ export default async function Portfolio() {
           </p>
         </div>
       )}
+      <AccountKey />
     </div>
   )
 }

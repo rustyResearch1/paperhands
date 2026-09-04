@@ -195,6 +195,27 @@ export class Ingestor {
 
 const CURSOR_KEY = 'watch_cursor'
 
+/**
+ * Retention: swaps and liquidity events power the tape, wire, and replay —
+ * a rolling window (default 7 days) bounds the DB; candles stay forever
+ * (they're small and power every chart). The replay floor moves with the
+ * oldest retained swap so reconstruction stays consistent.
+ */
+function pruneOldRows(db: Database.Database, nowSec: number) {
+  const days = Number(process.env.PAPERHANDS_RETAIN_DAYS ?? 7)
+  const cutoff = nowSec - days * 86400
+  const swaps = db.prepare('DELETE FROM swaps WHERE ts < ?').run(cutoff).changes
+  const floor = (db.prepare('SELECT MIN(block) AS b FROM swaps').get() as { b: number | null }).b
+  let liq = 0
+  if (floor) {
+    liq = db.prepare('DELETE FROM liq_events WHERE block < ?').run(floor).changes
+    const cur = Number(getMeta(db, 'liq_from') ?? 0)
+    if (floor > cur) setMeta(db, 'liq_from', String(floor))
+  }
+  if (swaps || liq) console.log(`prune: dropped ${swaps} swaps, ${liq} liq events (retain ${days}d)`)
+}
+const GAP_LIMIT = 150_000n // ~3h of blocks; beyond this, RPC state is pruned and catch-up is hopeless
+
 export async function watchLoop(client: ChainClient, db: Database.Database, opts: { pollMs?: number } = {}) {
   const ingestor = new Ingestor(client, db)
   await ingestor.clock.sync()
@@ -206,6 +227,21 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
   } else {
     cursor = (await client.getBlockNumber()) - 1000n
   }
+
+  // Self-heal: a long outage leaves an unfillable hole (pruned state, hours
+  // of grinding). Jump forward, move the replay floor, record the gap.
+  const head = await client.getBlockNumber()
+  if (head - cursor > GAP_LIMIT) {
+    const jumped = head - 20_000n
+    const gaps = getMeta(db, 'history_gaps') ?? ''
+    setMeta(db, 'history_gaps', `${gaps}${cursor}-${jumped};`)
+    console.warn(`watch: cursor lagged head by ${head - cursor} blocks — jumping ${cursor} → ${jumped}; replay floor moves with it`)
+    cursor = jumped
+    setMeta(db, CURSOR_KEY, cursor.toString())
+    setMeta(db, 'liq_from', cursor.toString())
+  }
+
+  let lastBackup = Number(getMeta(db, 'last_backup_ts') ?? 0)
 
   console.log(`watch: starting from block ${cursor}`)
   for (;;) {
@@ -223,6 +259,18 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         const enriched = await ingestor.enrichTraders(60)
         const tailFills = await executeTails(client, db)
         if (tailFills > 0) console.log(`watch: mirrored ${tailFills} tail fill(s)`)
+
+        const nowSec = Math.floor(Date.now() / 1000)
+        if (nowSec - Number(getMeta(db, 'last_prune_ts') ?? 0) > 24 * 3600) {
+          setMeta(db, 'last_prune_ts', String(nowSec))
+          pruneOldRows(db, nowSec)
+        }
+        if (nowSec - lastBackup > 6 * 3600) {
+          lastBackup = nowSec
+          setMeta(db, 'last_backup_ts', String(nowSec))
+          const { runBackup } = await import('./backup.js')
+          runBackup(db, db.name).catch((err) => console.error('backup failed:', (err as Error).message))
+        }
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())
         if (swaps.length > 0) {
