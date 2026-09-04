@@ -82,7 +82,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
           <span className="text-graphite tabular-nums">{formatUsd(lastClose * usdRate)}</span>
         ) : null}
         <span className="rule-label">
-          {meta.version === 4 ? 'v4 · ' : ''}fee {(meta.fee / 10000).toFixed(2)}% · depth{' '}
+          {meta.version === 4 ? 'v4 · ' : ''}fee {meta.fee >= 8388608 ? 'dynamic (hook-set)' : `${(meta.fee / 10000).toFixed(2)}%`} · depth{' '}
           {depth.toLocaleString('en-US', { maximumFractionDigits: 1 })} {meta.quoteSymbol} ·{' '}
           {poolRow.swap_count.toLocaleString()} swaps tracked
         </span>

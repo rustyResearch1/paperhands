@@ -115,6 +115,7 @@ export default async function Screener({
                       <Link href={`/t/${r.address}`} className="flex items-baseline gap-2 hover:underline underline-offset-4">
                         <b>{r.baseSymbol}</b>
                         <span className="text-faint text-[11px] max-w-36 truncate inline-block align-bottom">{r.baseName}</span>
+                        {r.poolCount > 1 && <span className="rule-label text-pen">×{r.poolCount}</span>}
                       </Link>
                     </td>
                     <td>{priceCell(r.lastClose ?? 0, r.quote_symbol)}</td>
@@ -132,7 +133,7 @@ export default async function Screener({
                     <td className={depth < 5 ? 'text-down font-semibold' : depth < 25 ? 'text-graphite' : ''}>
                       {depth ? money(quoteDepth(r), r.quote_symbol) : '—'}
                     </td>
-                    <td className="text-graphite">{(r.fee / 10000).toFixed(2)}%</td>
+                    <td className="text-graphite">{r.fee >= 8388608 ? 'dyn' : `${(r.fee / 10000).toFixed(2)}%`}</td>
                     <td>
                       {r.factory_verified ? (
                         <span className="text-up text-[11px]">uniswap ✓</span>

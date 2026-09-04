@@ -30,7 +30,7 @@ export type ScreenerSort = 'vol' | 'traction' | 'change5m' | 'change30m' | 'trad
 
 let rowCache: { rows: ScreenerRow[]; at: number } | null = null
 
-export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEth = 0): ScreenerRow[] {
+export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEth = 0): GroupedRow[] {
   // One heavy candle-aggregate query per 5s regardless of visitors/sorts.
   if (rowCache && Date.now() - rowCache.at < 5000) {
     return sortAndTrim(rowCache.rows, limit, sort, minDepthEth)
@@ -60,17 +60,59 @@ export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEt
   return sortAndTrim(rows, limit, sort, minDepthEth)
 }
 
-function sortAndTrim(rows: ScreenerRow[], limit: number, sort: ScreenerSort, minDepthEth: number): ScreenerRow[] {
+function sortAndTrim(rows: ScreenerRow[], limit: number, sort: ScreenerSort, minDepthEth: number): GroupedRow[] {
   const filtered = minDepthEth > 0 ? rows.filter((r) => ethDepth(r) >= minDepthEth) : rows
-  const key: Record<ScreenerSort, (r: ScreenerRow) => number> = {
-    vol: (r) => r.vol24,
+  const grouped = groupByToken(filtered)
+  const key: Record<ScreenerSort, (r: GroupedRow) => number> = {
+    vol: (r) => r.volEthEq,
     traction: (r) => tractionScore(r),
     change5m: (r) => pctChange(r.lastClose, r.close5m) ?? -Infinity,
     change30m: (r) => pctChange(r.lastClose, r.close30m) ?? -Infinity,
     trades: (r) => r.trades24,
     depth: (r) => ethDepth(r),
   }
-  return [...filtered].sort((a, b) => key[sort](b) - key[sort](a)).slice(0, limit)
+  return [...grouped].sort((a, b) => key[sort](b) - key[sort](a)).slice(0, limit)
+}
+
+export interface GroupedRow extends ScreenerRow {
+  poolCount: number
+  /** Total 24h volume across the token's pools, in ETH-equivalent terms. */
+  volEthEq: number
+}
+
+/**
+ * One row per token: a JUGGERNAUT with three fee tiers is one market, not
+ * three. The deepest pool is the face (price, link, quote); volumes and
+ * trade counts sum across pools in ETH-equivalent terms, then re-express in
+ * the face pool's quote so display conversion stays uniform.
+ */
+function groupByToken(rows: ScreenerRow[]): GroupedRow[] {
+  const rate = ethUsdRate()
+  const toEthEq = (v: number, quote: string) => (quote === 'USDG' ? (rate ? v / rate : 0) : v)
+  const groups = new Map<string, ScreenerRow[]>()
+  for (const r of rows) {
+    const list = groups.get(r.baseAddr)
+    if (list) list.push(r)
+    else groups.set(r.baseAddr, [r])
+  }
+  const out: GroupedRow[] = []
+  for (const list of groups.values()) {
+    const face = list.reduce((a, b) => (ethDepth(b) > ethDepth(a) ? b : a))
+    const volEthEq = list.reduce((s, r) => s + toEthEq(r.vol24, r.quote_symbol), 0)
+    const vol30Eq = list.reduce((s, r) => s + toEthEq(r.vol30, r.quote_symbol), 0)
+    const vol30prevEq = list.reduce((s, r) => s + toEthEq(r.vol30prev, r.quote_symbol), 0)
+    const backToFace = (ethEq: number) => (face.quote_symbol === 'USDG' ? ethEq * (rate ?? 0) : ethEq)
+    out.push({
+      ...face,
+      poolCount: list.length,
+      volEthEq,
+      vol24: backToFace(volEthEq),
+      vol30: backToFace(vol30Eq),
+      vol30prev: backToFace(vol30prevEq),
+      trades24: list.reduce((s, r) => s + r.trades24, 0),
+    })
+  }
+  return out
 }
 
 /**

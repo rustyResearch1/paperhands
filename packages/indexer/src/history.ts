@@ -46,7 +46,16 @@ interface LiqRow {
   amount: string
 }
 
-export function liqFromBlock(db: Database.Database): number | undefined {
+export function liqFromBlock(db: Database.Database, pool?: string): number | undefined {
+  if (pool) {
+    const row = db.prepare('SELECT version FROM pools WHERE address = ?').get(pool.toLowerCase()) as
+      | { version: number }
+      | undefined
+    if (row?.version === 4) {
+      const v4 = getMeta(db, 'v4_liq_from')
+      return v4 ? Number(v4) : undefined
+    }
+  }
   const v = getMeta(db, 'liq_from')
   return v ? Number(v) : undefined
 }
@@ -94,7 +103,7 @@ export async function reconstructAt(
   atBlock: number,
 ): Promise<V3PoolState> {
   const poolKey = pool.toLowerCase()
-  const from = liqFromBlock(db)
+  const from = liqFromBlock(db, poolKey)
   if (from === undefined) throw new Error('liq events not backfilled — run: main.ts liq-backfill')
   if (atBlock < from) throw new Error(`history starts at block ${from}; asked for ${atBlock}`)
   const cursorStr = getMeta(db, 'watch_cursor')

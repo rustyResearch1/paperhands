@@ -161,11 +161,16 @@ if (cmd === 'discover') {
   const cursor = Number(getMeta(db, 'watch_cursor') ?? 0)
   const liqFrom = Number(getMeta(db, 'liq_from') ?? 0)
   if (!cursor || !liqFrom) throw new Error('run discover + liq-backfill first')
+  // v4 is the busiest venue — cap the sweep to what replay can actually use
+  // and record its own floor (v4 reconstruction is valid from here forward).
+  const blocksBack = Number(process.argv[3] ?? 200_000)
+  const from = Math.max(liqFrom, cursor - blocksBack)
+  setMeta(db, 'v4_liq_from', String(from))
   const ing = new Ingestor(client, db)
   await ing.clock.sync()
-  console.log(`v4-backfill: PoolManager activity over ${liqFrom}..${cursor}`)
+  console.log(`v4-backfill: PoolManager activity over ${from}..${cursor}`)
   const chunk = 20_000
-  for (let start = liqFrom; start <= cursor; start += chunk) {
+  for (let start = from; start <= cursor; start += chunk) {
     const end = Math.min(start + chunk - 1, cursor)
     const v4 = await withRetries(`v4 ${start}..${end}`, () => fetchV4Logs(client, BigInt(start), BigInt(end)))
     for (const init of v4.inits) await registerV4Pool(client, db, init)
