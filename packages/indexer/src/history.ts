@@ -1,4 +1,5 @@
-import { readV3Pool, type ChainClient } from '@paperhands/chain'
+import type { ChainClient } from '@paperhands/chain'
+import { readPoolState } from './readers.js'
 import {
   getAmountsForLiquidity,
   getSqrtRatioAtTick,
@@ -109,7 +110,7 @@ export async function reconstructAt(
       `indexer cursor lags the chain head by ${head - cursor} blocks — start the watch loop and let it catch up`,
     )
   }
-  const snap = await readV3Pool(client, poolKey as Address, 12, BigInt(cursor))
+  const snap = await readPoolState(client, db, poolKey, { wordRadius: 12, atBlock: BigInt(cursor) })
   const state: V3PoolState = {
     ...snap.state,
     ticks: snap.state.ticks.map((t) => ({ ...t })),

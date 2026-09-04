@@ -34,6 +34,12 @@ export async function executeTrade(
   if (!meta.factory_verified) {
     return { ok: false, error: 'Pool is not verified against the Uniswap factory — trading it is disabled.' }
   }
+  if (meta.hooked) {
+    return { ok: false, error: 'Hook pool — hooks can rewrite fills, so honest simulation is impossible. View-only.' }
+  }
+  if (meta.quoteSymbol !== 'WETH' && meta.quoteSymbol !== 'ETH') {
+    return { ok: false, error: 'USD-quoted pool — the ETH paper bankroll cannot trade it yet. View-only for now.' }
+  }
   const poolKey = pool.toLowerCase()
 
   let quote: TicketQuote

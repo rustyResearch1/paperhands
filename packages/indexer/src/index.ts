@@ -1,5 +1,7 @@
 export * from './db.js'
 export * from './discover.js'
+export * from './discoverV4.js'
+export * from './readers.js'
 export * from './history.js'
 export * from './lab.js'
 export * from './ledger.js'

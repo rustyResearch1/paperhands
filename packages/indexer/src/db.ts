@@ -157,6 +157,15 @@ function migrate(db: Database.Database) {
   if (!swapCols.some((c) => c.name === 'liquidity')) {
     db.exec(`ALTER TABLE swaps ADD COLUMN liquidity TEXT`)
   }
+  // v4 + multi-quote: hooks (v4 pools; 0x0 = hookless) and the quote
+  // currency each pool is priced in ('WETH' | 'ETH' native | 'USDG').
+  const poolCols = db.prepare(`PRAGMA table_info(pools)`).all() as { name: string }[]
+  if (!poolCols.some((c) => c.name === 'hooks')) {
+    db.exec(`ALTER TABLE pools ADD COLUMN hooks TEXT`)
+  }
+  if (!poolCols.some((c) => c.name === 'quote_symbol')) {
+    db.exec(`ALTER TABLE pools ADD COLUMN quote_symbol TEXT`)
+  }
 }
 
 export function getMeta(db: Database.Database, key: string): string | undefined {

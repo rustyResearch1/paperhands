@@ -25,12 +25,14 @@ interface PoolMetaRow {
   baseDecimals: number
   quoteDecimals: number
   baseSymbol: string
+  quote_symbol: string | null
+  hooks: string | null
 }
 
 function labPoolMeta(db: Database.Database, pool: string): PoolMetaRow {
   const row = db
     .prepare(
-      `SELECT p.base_is_token0, p.tick_spacing, p.fee,
+      `SELECT p.base_is_token0, p.tick_spacing, p.fee, p.quote_symbol, p.hooks,
               tb.decimals AS baseDecimals, tq.decimals AS quoteDecimals, tb.symbol AS baseSymbol
        FROM pools p
        JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
@@ -39,6 +41,12 @@ function labPoolMeta(db: Database.Database, pool: string): PoolMetaRow {
     )
     .get(pool.toLowerCase()) as PoolMetaRow | undefined
   if (!row) throw new Error('pool not tracked, unpriced, or unverified')
+  if (row.hooks && row.hooks !== '0x0000000000000000000000000000000000000000') {
+    throw new Error('hook pool — hooks can rewrite fills, so simulation is disabled')
+  }
+  if (!['WETH', 'ETH', null].includes(row.quote_symbol)) {
+    throw new Error('USD-quoted pool — the lab runs on ETH-quoted pools for now')
+  }
   return row
 }
 
@@ -223,6 +231,8 @@ export async function walletReplay(
        JOIN pools p ON p.address = s.pool
        WHERE s.trader = ? AND s.block > ? AND s.block <= ?
          AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1
+         AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
+         AND (p.hooks IS NULL OR p.hooks = '0x0000000000000000000000000000000000000000')
        GROUP BY s.pool ORDER BY n DESC LIMIT ?`,
     )
     .all(w, fromBlock, toBlock, maxPools) as { pool: string; n: number }[]

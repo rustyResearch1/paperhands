@@ -116,6 +116,83 @@ export const quoterV2Abi = [
   },
 ] as const
 
+export const v4PoolManagerAbi = [
+  {
+    type: 'event', name: 'Initialize',
+    inputs: [
+      { type: 'bytes32', name: 'id', indexed: true },
+      { type: 'address', name: 'currency0', indexed: true },
+      { type: 'address', name: 'currency1', indexed: true },
+      { type: 'uint24', name: 'fee', indexed: false },
+      { type: 'int24', name: 'tickSpacing', indexed: false },
+      { type: 'address', name: 'hooks', indexed: false },
+      { type: 'uint160', name: 'sqrtPriceX96', indexed: false },
+      { type: 'int24', name: 'tick', indexed: false },
+    ],
+  },
+  {
+    type: 'event', name: 'Swap',
+    inputs: [
+      { type: 'bytes32', name: 'id', indexed: true },
+      { type: 'address', name: 'sender', indexed: true },
+      { type: 'int128', name: 'amount0', indexed: false },
+      { type: 'int128', name: 'amount1', indexed: false },
+      { type: 'uint160', name: 'sqrtPriceX96', indexed: false },
+      { type: 'uint128', name: 'liquidity', indexed: false },
+      { type: 'int24', name: 'tick', indexed: false },
+      { type: 'uint24', name: 'fee', indexed: false },
+    ],
+  },
+  {
+    type: 'event', name: 'ModifyLiquidity',
+    inputs: [
+      { type: 'bytes32', name: 'id', indexed: true },
+      { type: 'address', name: 'sender', indexed: true },
+      { type: 'int24', name: 'tickLower', indexed: false },
+      { type: 'int24', name: 'tickUpper', indexed: false },
+      { type: 'int256', name: 'liquidityDelta', indexed: false },
+      { type: 'bytes32', name: 'salt', indexed: false },
+    ],
+  },
+] as const
+
+export const v4StateViewAbi = [
+  {
+    type: 'function', name: 'getSlot0', stateMutability: 'view',
+    inputs: [{ type: 'bytes32', name: 'poolId' }],
+    outputs: [
+      { type: 'uint160', name: 'sqrtPriceX96' },
+      { type: 'int24', name: 'tick' },
+      { type: 'uint24', name: 'protocolFee' },
+      { type: 'uint24', name: 'lpFee' },
+    ],
+  },
+  {
+    type: 'function', name: 'getLiquidity', stateMutability: 'view',
+    inputs: [{ type: 'bytes32', name: 'poolId' }],
+    outputs: [{ type: 'uint128', name: 'liquidity' }],
+  },
+  {
+    type: 'function', name: 'getTickBitmap', stateMutability: 'view',
+    inputs: [
+      { type: 'bytes32', name: 'poolId' },
+      { type: 'int16', name: 'tick' },
+    ],
+    outputs: [{ type: 'uint256', name: 'tickBitmap' }],
+  },
+  {
+    type: 'function', name: 'getTickLiquidity', stateMutability: 'view',
+    inputs: [
+      { type: 'bytes32', name: 'poolId' },
+      { type: 'int24', name: 'tick' },
+    ],
+    outputs: [
+      { type: 'uint128', name: 'liquidityGross' },
+      { type: 'int128', name: 'liquidityNet' },
+    ],
+  },
+] as const
+
 export const v3PoolCreatedEvent = {
   type: 'event', name: 'PoolCreated',
   inputs: [

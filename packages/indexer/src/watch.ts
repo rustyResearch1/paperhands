@@ -2,6 +2,7 @@ import type { ChainClient } from '@paperhands/chain'
 import type Database from 'better-sqlite3'
 import type { Address } from 'viem'
 import { fetchLiqLogs, fetchSwapLogs, insertLiqEvents, resolvePool, type DecodedSwap } from './discover.js'
+import { fetchV4Logs, fetchV4LiqForPool, registerV4Pool, resolveV4PoolById } from './discoverV4.js'
 import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, setMeta } from './db.js'
@@ -66,29 +67,29 @@ export class Ingestor {
     }
     if (resolveUnknown && unknown.size > 0) {
       const liqFrom = getMeta(this.db, 'liq_from')
+      const lastBlock = swaps[swaps.length - 1]!.block
       const queue = [...unknown]
       const workers = Array.from({ length: Math.min(8, queue.length) }, async () => {
         for (let pool = queue.pop(); pool; pool = queue.pop()) {
-          const row = await resolvePool(this.client, this.db, pool as Address, swaps[0]!.block)
-          if (row) {
-            newPools++
-            this.invalidate(pool)
-            // A pool discovered after the liq backfill is missing its
-            // Mint/Burn history — fetch it per-address so reconstruction
-            // stays complete.
-            if (liqFrom) {
-              try {
-                const events = await fetchLiqLogs(
-                  this.client,
-                  BigInt(liqFrom),
-                  swaps[swaps.length - 1]!.block,
-                  100_000n,
-                  pool as Address,
-                )
-                insertLiqEvents(this.db, events)
-              } catch (err) {
-                console.error(`liq catchup failed for ${pool}:`, (err as Error).message.split('\n')[0])
-              }
+          // 66-char keys are v4 pool ids; 42-char keys are v3 pool addresses.
+          const isV4 = pool.length === 66
+          const resolved = isV4
+            ? await resolveV4PoolById(this.client, this.db, pool)
+            : Boolean(await resolvePool(this.client, this.db, pool as Address, swaps[0]!.block))
+          if (!resolved) continue
+          newPools++
+          this.invalidate(pool)
+          // A pool discovered after the liq backfill is missing its
+          // liquidity history — fetch it per-pool so reconstruction
+          // stays complete.
+          if (liqFrom) {
+            try {
+              const events = isV4
+                ? await fetchV4LiqForPool(this.client, pool, BigInt(liqFrom), lastBlock)
+                : await fetchLiqLogs(this.client, BigInt(liqFrom), lastBlock, 100_000n, pool as Address)
+              insertLiqEvents(this.db, events)
+            } catch (err) {
+              console.error(`liq catchup failed for ${pool}:`, (err as Error).message.split('\n')[0])
             }
           }
         }
@@ -256,6 +257,12 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
           const liqEvents = await fetchLiqLogs(client, cursor + 1n, to)
           insertLiqEvents(db, liqEvents)
         }
+        // v4: the singleton PoolManager carries inits, swaps, and liquidity
+        // in one address-filtered stream.
+        const v4 = await fetchV4Logs(client, cursor + 1n, to)
+        for (const init of v4.inits) await registerV4Pool(client, db, init)
+        const r4 = await ingestor.ingest(v4.swaps)
+        insertLiqEvents(db, v4.liq)
         const enriched = await ingestor.enrichTraders(60)
         const tailFills = await executeTails(client, db)
         if (tailFills > 0) console.log(`watch: mirrored ${tailFills} tail fill(s)`)
@@ -273,9 +280,9 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         }
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())
-        if (swaps.length > 0) {
+        if (swaps.length + v4.swaps.length > 0) {
           console.log(
-            `watch: blocks→${to} swaps=${swaps.length} ingested=${ingested} newPools=${newPools} traders+${enriched}`,
+            `watch: blocks→${to} v3=${ingested}/${swaps.length} v4=${r4.ingested}/${v4.swaps.length} newPools=${newPools + r4.newPools} traders+${enriched}`,
           )
         }
       }

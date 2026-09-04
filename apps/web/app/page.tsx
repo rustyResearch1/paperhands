@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { formatPrice, formatPct, formatUsd } from '@/lib/format'
-import { ethDepth, pctChange, screenerRows, type ScreenerSort } from '@/lib/screener'
+import { ethDepth, pctChange, quoteDepth, screenerRows, type ScreenerSort } from '@/lib/screener'
 import { ethUsdRate } from '@/lib/usd'
 
 export const dynamic = 'force-dynamic'
@@ -36,12 +36,21 @@ export default async function Screener({
   const params = await searchParams
   const sort = (SORTS.some((s) => s.key === params.sort) ? params.sort : 'vol') as ScreenerSort
   const safe = params.safe !== '0'
-  const rate = params.ccy === 'eth' ? null : ethUsdRate()
-  const usd = rate !== null
+  const rate = ethUsdRate()
+  const usd = params.ccy !== 'eth' && rate !== null
   const rows = screenerRows(80, sort, safe ? 3 : 0).filter((r) => !safe || r.factory_verified === 1)
 
   const link = (s: ScreenerSort) => `/?sort=${s}${safe ? '' : '&safe=0'}${usd ? '' : '&ccy=eth'}`
-  const money = (eth: number) => (usd ? formatUsd(eth * rate) : eth.toLocaleString('en-US', { maximumFractionDigits: 2 }))
+  // Candles are priced in each pool's own quote currency; normalize per row.
+  const money = (v: number, quote: string) => {
+    const inUsd = quote === 'USDG' ? v : v * (rate ?? 0)
+    const inEth = quote === 'USDG' ? (rate ? v / rate : 0) : v
+    return usd ? formatUsd(inUsd) : inEth.toLocaleString('en-US', { maximumFractionDigits: 2 })
+  }
+  const priceCell = (px: number, quote: string) => {
+    if (usd) return formatUsd(quote === 'USDG' ? px : px * (rate ?? 0))
+    return formatPrice(quote === 'USDG' ? (rate ? px / rate : 0) : px)
+  }
 
   return (
     <div>
@@ -108,11 +117,11 @@ export default async function Screener({
                         <span className="text-faint text-[11px] max-w-36 truncate inline-block align-bottom">{r.baseName}</span>
                       </Link>
                     </td>
-                    <td>{usd ? formatUsd((r.lastClose ?? 0) * rate) : formatPrice(r.lastClose ?? 0)}</td>
+                    <td>{priceCell(r.lastClose ?? 0, r.quote_symbol)}</td>
                     <td>
                       <Traction vol30={r.vol30} vol30prev={r.vol30prev} />
                     </td>
-                    <td>{money(r.vol24)}</td>
+                    <td>{money(r.vol24, r.quote_symbol)}</td>
                     <td>
                       <Change value={pctChange(r.lastClose, r.close5m)} />
                     </td>
@@ -121,7 +130,7 @@ export default async function Screener({
                     </td>
                     <td>{r.trades24.toLocaleString('en-US')}</td>
                     <td className={depth < 5 ? 'text-down font-semibold' : depth < 25 ? 'text-graphite' : ''}>
-                      {depth ? money(depth) : '—'}
+                      {depth ? money(quoteDepth(r), r.quote_symbol) : '—'}
                     </td>
                     <td className="text-graphite">{(r.fee / 10000).toFixed(2)}%</td>
                     <td>

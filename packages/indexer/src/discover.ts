@@ -1,4 +1,4 @@
-import { UNISWAP, WETH, readTokenMeta, v3FactoryAbi, v3PoolAbi, type ChainClient } from '@paperhands/chain'
+import { UNISWAP, USDG, WETH, readTokenMeta, v3FactoryAbi, v3PoolAbi, type ChainClient } from '@paperhands/chain'
 import type Database from 'better-sqlite3'
 import { decodeEventLog, type AbiEvent, type Address, type Log } from 'viem'
 
@@ -240,9 +240,16 @@ export async function resolvePool(
     await upsertToken(client, db, t, discoveredBlock)
   }
 
+  // Quote preference: WETH first, then USDG — a pool with neither stays
+  // recorded but unpriced.
   const wethLower = WETH.toLowerCase()
-  const baseIsToken0 =
-    token1.toLowerCase() === wethLower ? 1 : token0.toLowerCase() === wethLower ? 0 : null
+  const usdgLower = USDG.toLowerCase()
+  let baseIsToken0: number | null = null
+  let quoteSymbol: string | null = null
+  if (token1.toLowerCase() === wethLower) [baseIsToken0, quoteSymbol] = [1, 'WETH']
+  else if (token0.toLowerCase() === wethLower) [baseIsToken0, quoteSymbol] = [0, 'WETH']
+  else if (token1.toLowerCase() === usdgLower) [baseIsToken0, quoteSymbol] = [1, 'USDG']
+  else if (token0.toLowerCase() === usdgLower) [baseIsToken0, quoteSymbol] = [0, 'USDG']
 
   const row: PoolRow = {
     address: pool.toLowerCase(),
@@ -254,8 +261,8 @@ export async function resolvePool(
     factory_verified: verified ? 1 : 0,
   }
   db.prepare(
-    `INSERT INTO pools(address, version, token0, token1, fee, tick_spacing, base_is_token0, factory_verified, discovered_block)
-     VALUES(?, 3, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO pools(address, version, token0, token1, fee, tick_spacing, base_is_token0, factory_verified, discovered_block, quote_symbol)
+     VALUES(?, 3, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(address) DO NOTHING`,
   ).run(
     row.address,
@@ -266,6 +273,7 @@ export async function resolvePool(
     baseIsToken0,
     row.factory_verified,
     Number(discoveredBlock),
+    quoteSymbol,
   )
   return row
 }

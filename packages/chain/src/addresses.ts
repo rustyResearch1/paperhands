@@ -24,6 +24,10 @@ export const UNISWAP = {
 } as const
 
 export const WETH: Address = '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73'
+/** Native ETH in v4 pools (currency0 of every native pair). */
+export const NATIVE: Address = '0x0000000000000000000000000000000000000000'
+/** Canonical Global Dollar — the chain's USD quote currency. */
+export const USDG: Address = '0x5fc5360D0400a0Fd4f2aF552aDD042D716f1D168'
 
 /** Well-known ecosystem tokens, for seeding discovery and fixtures. */
 export const KNOWN_TOKENS: Record<string, Address> = {

@@ -1,9 +1,9 @@
-import { readV3Pool, type ChainClient, type V3PoolSnapshot } from '@paperhands/chain'
+import type { ChainClient } from '@paperhands/chain'
 import { quoteV3ExactIn } from '@paperhands/engine'
 import type Database from 'better-sqlite3'
-import type { Address } from 'viem'
 import { LedgerRejected, settlePaperTrade } from './ledger.js'
 import { basePriceInQuote } from './prices.js'
+import { readPoolState, type PoolStateSnapshot } from './readers.js'
 
 interface TailRow {
   user_id: string
@@ -34,7 +34,7 @@ export async function executeTails(client: ChainClient, db: Database.Database): 
   const tails = db.prepare('SELECT user_id, wallet, size_quote, last_block FROM kol_tails WHERE active = 1').all() as TailRow[]
   if (tails.length === 0) return 0
 
-  const snapCache = new Map<string, V3PoolSnapshot>()
+  const snapCache = new Map<string, PoolStateSnapshot>()
   const kolSwaps = db.prepare(
     `SELECT s.tx_hash, s.pool, s.block, s.ts, s.amount0, s.amount1,
             p.base_is_token0, t0.decimals AS d0, t1.decimals AS d1
@@ -43,6 +43,8 @@ export async function executeTails(client: ChainClient, db: Database.Database): 
      JOIN tokens t0 ON t0.address = p.token0
      JOIN tokens t1 ON t1.address = p.token1
      WHERE s.trader = ? AND s.block > ? AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1
+       AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
+       AND (p.hooks IS NULL OR p.hooks = '0x0000000000000000000000000000000000000000')
      ORDER BY s.block ASC, s.log_index ASC LIMIT 25`,
   )
   const bumpCursor = db.prepare('UPDATE kol_tails SET last_block = ? WHERE user_id = ? AND wallet = ?')
@@ -73,7 +75,7 @@ async function mirrorSwap(
   db: Database.Database,
   tail: TailRow,
   s: KolSwapRow,
-  snapCache: Map<string, V3PoolSnapshot>,
+  snapCache: Map<string, PoolStateSnapshot>,
 ): Promise<boolean> {
   const baseIsToken0 = s.base_is_token0 === 1
   const ethAmt = BigInt(baseIsToken0 ? s.amount1 : s.amount0)
@@ -99,7 +101,7 @@ async function mirrorSwap(
 
   let snap = snapCache.get(s.pool)
   if (!snap) {
-    snap = await readV3Pool(client, s.pool as Address)
+    snap = await readPoolState(client, db, s.pool)
     snapCache.set(s.pool, snap)
   }
 

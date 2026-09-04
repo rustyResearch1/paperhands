@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { formatEth, formatPrice, formatQty, formatUsd, timeAgo } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
 import { poolMeta, ticketQuote } from '@/lib/quote'
-import { ethDepth } from '@/lib/screener'
+import { quoteDepth } from '@/lib/screener'
 import { getOrCreateUser } from '@/lib/session'
 import { EXPLORER_URL } from '@paperhands/chain'
 
@@ -66,27 +66,38 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
     .prepare('SELECT ts, amount0, amount1, trader, tx_hash FROM swaps WHERE pool = ? ORDER BY block DESC, log_index DESC LIMIT 25')
     .all(pool) as SwapRow[]
   const baseIsToken0 = meta.base_is_token0 === 1
-  const depth = ethDepth(poolRow)
+  const depth = quoteDepth({ ...poolRow, quoteDecimals: meta.quoteDecimals })
+  const tradable = Boolean(meta.factory_verified) && !meta.hooked && (meta.quoteSymbol === 'WETH' || meta.quoteSymbol === 'ETH')
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-xl font-bold">{meta.baseSymbol}</h1>
-        <span className="text-lg tabular-nums">{formatPrice(lastClose ?? 0)} ETH</span>
-        {usdRate && lastClose ? <span className="text-graphite tabular-nums">{formatUsd(lastClose * usdRate)}</span> : null}
+        <span className="text-lg tabular-nums">
+          {formatPrice(lastClose ?? 0)} {meta.quoteSymbol}
+        </span>
+        {lastClose && meta.quoteSymbol === 'USDG' ? (
+          <span className="text-graphite tabular-nums">{formatUsd(lastClose)}</span>
+        ) : usdRate && lastClose ? (
+          <span className="text-graphite tabular-nums">{formatUsd(lastClose * usdRate)}</span>
+        ) : null}
         <span className="rule-label">
-          fee {(meta.fee / 10000).toFixed(2)}% · depth {depth.toLocaleString('en-US', { maximumFractionDigits: 1 })} ETH ·{' '}
+          {meta.version === 4 ? 'v4 · ' : ''}fee {(meta.fee / 10000).toFixed(2)}% · depth{' '}
+          {depth.toLocaleString('en-US', { maximumFractionDigits: 1 })} {meta.quoteSymbol} ·{' '}
           {poolRow.swap_count.toLocaleString()} swaps tracked
         </span>
         {!meta.factory_verified && <span className="stamp text-stamp text-[10px]">unverified pool</span>}
-        <a
-          className="rule-label text-pen hover:underline ml-auto"
-          href={`${EXPLORER_URL}/address/${pool}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          explorer ↗
-        </a>
+        {meta.hooked && <span className="stamp text-pen text-[10px]">hook pool</span>}
+        {pool.length === 42 && (
+          <a
+            className="rule-label text-pen hover:underline ml-auto"
+            href={`${EXPLORER_URL}/address/${pool}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            explorer ↗
+          </a>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -122,7 +133,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
               <thead>
                 <tr>
                   <th>side</th>
-                  <th>size (ETH)</th>
+                  <th>size ({meta.quoteSymbol})</th>
                   <th>trader</th>
                   <th>when</th>
                 </tr>
@@ -155,14 +166,29 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
         </div>
 
         <div className="space-y-4">
-          <TradeTicket
-            pool={pool}
-            baseSymbol={meta.baseSymbol}
-            baseDecimals={meta.baseDecimals}
-            balanceWei={user.balance_quote}
-            positionQty={position?.qty ?? '0'}
-          />
-          <LpLab pool={pool} />
+          {tradable ? (
+            <>
+              <TradeTicket
+                pool={pool}
+                baseSymbol={meta.baseSymbol}
+                baseDecimals={meta.baseDecimals}
+                balanceWei={user.balance_quote}
+                positionQty={position?.qty ?? '0'}
+              />
+              <LpLab pool={pool} />
+            </>
+          ) : (
+            <div className="slip p-4">
+              <div className="stamp text-stamp text-[10px] mb-2">view only</div>
+              <p className="text-[12px] text-graphite">
+                {meta.hooked
+                  ? 'This is a hook pool — its hooks can rewrite fills, so honest simulation is impossible. Charts and the tape stay live.'
+                  : meta.quoteSymbol === 'USDG'
+                    ? 'This pool trades against USDG (dollars). The ETH paper bankroll cannot trade it yet — charts and the tape stay live.'
+                    : 'This pool is not verified against the Uniswap factory — treat as hostile.'}
+              </p>
+            </div>
+          )}
           <p className="rule-label">
             <Link href="/" className="text-pen hover:underline">
               ← back to the book

@@ -121,6 +121,27 @@ SQLite one-box is deliberate for v0.)
 What it deliberately does not model (yet): your trade moving the market for *others*,
 MEV/sandwiches, and gas (~negligible on the L2 for sizes that matter here).
 
+## Coverage
+
+- **Uniswap v3** (TickLens state) and **Uniswap v4** (StateView + singleton PoolManager
+  stream — v4 is the chain's busiest venue). v4 amounts are normalized to v3's sign
+  convention at ingest so every downstream consumer stays uniform.
+- Quotes: **WETH, native ETH, and USDG** — dollar-quoted pools (where tokenized stocks
+  trade) are fully indexed/charted; the ETH paper bankroll trades ETH-quoted pools, USD
+  pools are view-only until the ledger grows a currency dimension.
+- **Hook pools are view-only by principle**: hooks can rewrite fills arbitrarily, so
+  honest simulation is impossible — we chart them and say so, rather than guess.
+
+## Durability
+
+- Identities are HMAC-signed cookies (set `PAPERHANDS_SECRET`); every account has a
+  portable **account key** (portfolio page) that survives cleared cookies and devices.
+- SQLite online backups every 6h — local rotation plus optional Cloudflare R2
+  (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`).
+- Rolling retention (default 7 days of swaps/liquidity, `PAPERHANDS_RETAIN_DAYS`);
+  candles are kept forever. A long indexer outage self-heals: the cursor jumps, the
+  replay floor moves with it, and the gap is recorded instead of corrupting history.
+
 ## The Wire — wallet intelligence and tailing
 
 `/wire` ranks real attributed wallets by **ETH actually taken out of pools** (not marked

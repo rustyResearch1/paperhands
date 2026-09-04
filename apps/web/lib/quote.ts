@@ -1,11 +1,11 @@
-import { makeClient, readV3Pool, type V3PoolSnapshot } from '@paperhands/chain'
+import { makeClient } from '@paperhands/chain'
+import { readPoolState, type PoolStateSnapshot } from '@paperhands/indexer'
 import { quoteV3ExactIn, roundTripV3, type Quote } from '@paperhands/engine'
-import type { Address } from 'viem'
 import { db } from './db'
 
 const g = globalThis as unknown as {
   __phclient?: ReturnType<typeof makeClient>
-  __phsnaps?: Map<string, { snap: V3PoolSnapshot; at: number }>
+  __phsnaps?: Map<string, { snap: PoolStateSnapshot; at: number }>
 }
 const client = (g.__phclient ??= makeClient())
 export const chainClient = client
@@ -18,21 +18,32 @@ export interface PoolMeta {
   base_is_token0: number
   factory_verified: number
   fee: number
+  version: number
+  quoteSymbol: string
+  hooked: boolean
   baseSymbol: string
   baseDecimals: number
   baseAddress: string
+  quoteDecimals: number
 }
 
+const HOOKLESS = '0x0000000000000000000000000000000000000000'
+
 export function poolMeta(pool: string): PoolMeta | undefined {
-  return db
+  const row = db
     .prepare(
-      `SELECT p.address, p.base_is_token0, p.factory_verified, p.fee,
-              tb.symbol AS baseSymbol, tb.decimals AS baseDecimals, tb.address AS baseAddress
+      `SELECT p.address, p.base_is_token0, p.factory_verified, p.fee, p.version, p.hooks,
+              COALESCE(p.quote_symbol, 'WETH') AS quoteSymbol,
+              tb.symbol AS baseSymbol, tb.decimals AS baseDecimals, tb.address AS baseAddress,
+              tq.decimals AS quoteDecimals
        FROM pools p
        JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
+       JOIN tokens tq ON tq.address = CASE WHEN p.base_is_token0 = 1 THEN p.token1 ELSE p.token0 END
        WHERE p.address = ? AND p.base_is_token0 IS NOT NULL`,
     )
-    .get(pool.toLowerCase()) as PoolMeta | undefined
+    .get(pool.toLowerCase()) as (Omit<PoolMeta, 'hooked'> & { hooks: string | null }) | undefined
+  if (!row) return undefined
+  return { ...row, hooked: Boolean(row.hooks && row.hooks !== HOOKLESS) }
 }
 
 /**
@@ -41,13 +52,13 @@ export function poolMeta(pool: string): PoolMeta | undefined {
  * filling on a 10s-old snapshot would be exploitable by anyone watching the
  * live tape.
  */
-export async function getSnapshot(pool: string, opts: { fresh?: boolean } = {}): Promise<V3PoolSnapshot> {
+export async function getSnapshot(pool: string, opts: { fresh?: boolean } = {}): Promise<PoolStateSnapshot> {
   const key = pool.toLowerCase()
   if (!opts.fresh) {
     const hit = snaps.get(key)
     if (hit && Date.now() - hit.at < SNAP_TTL_MS) return hit.snap
   }
-  const snap = await readV3Pool(client, key as Address)
+  const snap = await readPoolState(client, db, key)
   snaps.set(key, { snap, at: Date.now() })
   return snap
 }

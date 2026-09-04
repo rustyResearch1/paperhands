@@ -154,6 +154,76 @@ if (cmd === 'discover') {
   console.log(md)
   console.log(`\nsaved: ${file}`)
   process.exit(0)
+} else if (cmd === 'v4-backfill') {
+  const { fetchV4Logs, registerV4Pool } = await import('./discoverV4.js')
+  const { insertLiqEvents } = await import('./discover.js')
+  const { Ingestor } = await import('./watch.js')
+  const cursor = Number(getMeta(db, 'watch_cursor') ?? 0)
+  const liqFrom = Number(getMeta(db, 'liq_from') ?? 0)
+  if (!cursor || !liqFrom) throw new Error('run discover + liq-backfill first')
+  const ing = new Ingestor(client, db)
+  await ing.clock.sync()
+  console.log(`v4-backfill: PoolManager activity over ${liqFrom}..${cursor}`)
+  const chunk = 20_000
+  for (let start = liqFrom; start <= cursor; start += chunk) {
+    const end = Math.min(start + chunk - 1, cursor)
+    const v4 = await withRetries(`v4 ${start}..${end}`, () => fetchV4Logs(client, BigInt(start), BigInt(end)))
+    for (const init of v4.inits) await registerV4Pool(client, db, init)
+    const r = await ing.ingest(v4.swaps)
+    const liq = insertLiqEvents(db, v4.liq)
+    console.log(`v4-backfill: ${start}..${end} inits=${v4.inits.length} swaps=${r.ingested}/${v4.swaps.length} pools+${r.newPools} liq+${liq}`)
+  }
+  console.log('v4-backfill: done')
+  process.exit(0)
+} else if (cmd === 'migrate-quotes') {
+  const { USDG } = await import('@paperhands/chain')
+  const { basePriceInQuote, toHuman } = await import('./prices.js')
+  const usdg = USDG.toLowerCase()
+  db.prepare(`UPDATE pools SET quote_symbol='WETH' WHERE quote_symbol IS NULL AND base_is_token0 IS NOT NULL AND version=3`).run()
+  const upgraded = db
+    .prepare(
+      `SELECT address, token0, token1 FROM pools
+       WHERE base_is_token0 IS NULL AND version = 3 AND (token0 = ? OR token1 = ?)`,
+    )
+    .all(usdg, usdg) as { address: string; token0: string; token1: string }[]
+  const setQuote = db.prepare(`UPDATE pools SET base_is_token0 = ?, quote_symbol = 'USDG' WHERE address = ?`)
+  for (const p of upgraded) setQuote.run(p.token1 === usdg ? 1 : 0, p.address)
+  console.log(`migrate-quotes: unlocked ${upgraded.length} USDG-quoted v3 pools`)
+
+  // Rebuild candles for the newly priced pools from retained swaps.
+  const upsert = db.prepare(
+    `INSERT INTO candles(pool, minute_ts, open, high, low, close, vol_quote, trades) VALUES(?,?,?,?,?,?,?,1)
+     ON CONFLICT(pool, minute_ts) DO UPDATE SET high=MAX(high,excluded.high), low=MIN(low,excluded.low),
+       close=excluded.close, vol_quote=vol_quote+excluded.vol_quote, trades=trades+1`,
+  )
+  let candled = 0
+  for (const p of upgraded) {
+    const meta = db
+      .prepare(
+        `SELECT p.base_is_token0 AS b0, tb.decimals AS bd, tq.decimals AS qd FROM pools p
+         JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0=1 THEN p.token0 ELSE p.token1 END
+         JOIN tokens tq ON tq.address = CASE WHEN p.base_is_token0=1 THEN p.token1 ELSE p.token0 END
+         WHERE p.address = ?`,
+      )
+      .get(p.address) as { b0: number; bd: number; qd: number } | undefined
+    if (!meta) continue
+    const swaps = db
+      .prepare('SELECT ts, amount0, amount1, sqrt_price_x96 FROM swaps WHERE pool = ? ORDER BY block, log_index')
+      .all(p.address) as { ts: number; amount0: string; amount1: string; sqrt_price_x96: string }[]
+    const tx = db.transaction(() => {
+      for (const s of swaps) {
+        const price = basePriceInQuote(BigInt(s.sqrt_price_x96), meta.b0 === 1, meta.bd, meta.qd)
+        if (!Number.isFinite(price) || price <= 0) continue
+        const qAmt = BigInt(meta.b0 === 1 ? s.amount1 : s.amount0)
+        const vol = Math.abs(toHuman(qAmt < 0n ? -qAmt : qAmt, meta.qd))
+        upsert.run(p.address, Math.floor(s.ts / 60) * 60, price, price, price, price, vol)
+        candled++
+      }
+    })
+    tx()
+  }
+  console.log(`migrate-quotes: rebuilt ${candled} candle points`)
+  process.exit(0)
 } else if (cmd === 'backup') {
   const { runBackup } = await import('./backup.js')
   await runBackup(db, db.name)

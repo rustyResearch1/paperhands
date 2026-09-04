@@ -50,7 +50,7 @@ export async function generateContentPack(client: ChainClient, db: Database.Data
            (SELECT close FROM candles c WHERE c.pool=p.address ORDER BY minute_ts DESC LIMIT 1) AS px,
            (SELECT close FROM candles c WHERE c.pool=p.address AND c.minute_ts <= @t180 ORDER BY minute_ts DESC LIMIT 1) AS px3h
          FROM pools p JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0=1 THEN p.token0 ELSE p.token1 END
-         WHERE p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND tb.symbol != 'USDG'
+         WHERE p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND tb.symbol != 'USDG' AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
          ORDER BY v30 DESC LIMIT 60`,
       )
       .all({ t30: now - 1800, t60: now - 3600, t180: now - 10800 }) as {
@@ -96,7 +96,7 @@ export async function generateContentPack(client: ChainClient, db: Database.Data
            (SELECT COALESCE(SUM(vol_quote),0) FROM candles c WHERE c.pool=p.address AND c.minute_ts > @t24) AS v24,
            CAST(p.last_liquidity AS REAL) * CAST(p.last_sqrt_price AS REAL) / 79228162514264337593543950336.0 / 1e18 AS depthEth
          FROM pools p JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0=1 THEN p.token0 ELSE p.token1 END
-         WHERE p.base_is_token0 = 1 AND p.factory_verified = 1 AND tb.symbol NOT IN ('USDG','USDe','WETH')
+         WHERE p.base_is_token0 = 1 AND p.factory_verified = 1 AND tb.symbol NOT IN ('USDG','USDe','WETH') AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
          ORDER BY p.swap_count DESC LIMIT 200`,
       )
       .all({ t180: now - 10800, t24: now - 86400 }) as {
@@ -133,7 +133,7 @@ export async function generateContentPack(client: ChainClient, db: Database.Data
         `SELECT trader, -SUM(eth) AS flow, COUNT(*) AS n FROM
            (SELECT s.trader, CAST(CASE WHEN p.base_is_token0=1 THEN s.amount1 ELSE s.amount0 END AS REAL)/1e18 AS eth
             FROM swaps s JOIN pools p ON p.address = s.pool
-            WHERE s.trader IS NOT NULL AND s.ts > @t24 AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1)
+            WHERE s.trader IS NOT NULL AND s.ts > @t24 AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH'))
          GROUP BY trader HAVING n >= 10 ORDER BY flow DESC LIMIT 1`,
       )
       .get({ t24: now - 86400 }) as { trader: string; flow: number; n: number } | undefined
@@ -167,7 +167,7 @@ export async function generateContentPack(client: ChainClient, db: Database.Data
         `SELECT p.address AS pool, tb.symbol AS sym,
            (SELECT COALESCE(SUM(vol_quote),0) FROM candles c WHERE c.pool=p.address AND c.minute_ts > @t24) AS v24
          FROM pools p JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0=1 THEN p.token0 ELSE p.token1 END
-         WHERE p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND tb.symbol NOT IN ('USDG')
+         WHERE p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND tb.symbol NOT IN ('USDG') AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
          ORDER BY v24 DESC LIMIT 1`,
       )
       .get({ t24: now - 86400 }) as { pool: string; sym: string; v24: number } | undefined
@@ -205,7 +205,7 @@ export async function generateContentPack(client: ChainClient, db: Database.Data
       .prepare(
         `SELECT p.address AS pool, tb.symbol AS sym, p.base_is_token0 AS b0
          FROM pools p JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0=1 THEN p.token0 ELSE p.token1 END
-         WHERE p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND tb.symbol NOT IN ('USDG')
+         WHERE p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND tb.symbol NOT IN ('USDG') AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
          ORDER BY (SELECT COALESCE(SUM(vol_quote),0) FROM candles c WHERE c.pool=p.address AND c.minute_ts > ${now - 21600}) DESC
          LIMIT 4`,
       )

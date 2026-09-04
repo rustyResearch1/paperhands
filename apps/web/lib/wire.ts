@@ -31,7 +31,7 @@ export function topTraders(limit = 50, minTrades = 5): WireRow[] {
               COUNT(DISTINCT pool) AS pools, MAX(ts) AS lastTs
        FROM (SELECT s.trader, s.pool, s.ts, ${ETH_EXPR} AS eth
              FROM swaps s JOIN pools p ON p.address = s.pool
-             WHERE s.trader IS NOT NULL AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1)
+             WHERE s.trader IS NOT NULL AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH'))
        GROUP BY trader HAVING trades >= @min
        ORDER BY netFlowEth DESC LIMIT @limit`,
     )
@@ -53,7 +53,7 @@ function openMarks(traders: string[]): Map<string, number> {
        FROM swaps s
        JOIN pools p ON p.address = s.pool
        JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
-       WHERE s.trader IN (${placeholders}) AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1
+       WHERE s.trader IN (${placeholders}) AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
        GROUP BY s.trader, s.pool`,
     )
     .all(...traders) as { trader: string; netBaseRaw: number; decimals: number; close: number | null }[]
@@ -89,7 +89,7 @@ export function walletPools(trader: string): WalletPoolRow[] {
        FROM swaps s
        JOIN pools p ON p.address = s.pool
        JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
-       WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1
+       WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
        GROUP BY s.pool ORDER BY ethIn + ethOut DESC LIMIT 40`,
     )
     .all(trader.toLowerCase()) as WalletPoolRow[]
@@ -110,7 +110,7 @@ export function walletRecentSwaps(trader: string, limit = 30): WalletSwapRow[] {
        FROM swaps s
        JOIN pools p ON p.address = s.pool
        JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
-       WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL
+       WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
        ORDER BY s.block DESC, s.log_index DESC LIMIT ?`,
     )
     .all(trader.toLowerCase(), limit) as WalletSwapRow[]
