@@ -146,26 +146,24 @@ function migrate(db: Database.Database) {
     );
   `)
 
-  const tradeCols = db.prepare(`PRAGMA table_info(paper_trades)`).all() as { name: string }[]
-  if (!tradeCols.some((c) => c.name === 'source')) {
-    db.exec(`ALTER TABLE paper_trades ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`)
+  // Concurrent processes (Next build workers, web + indexer) can race these
+  // migrations on a fresh file — a lost race is fine, a throw is not.
+  const addColumn = (table: string, ddl: string) => {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`)
+    } catch (err) {
+      if (!/duplicate column/i.test((err as Error).message)) throw err
+    }
   }
+  addColumn('paper_trades', `source TEXT NOT NULL DEFAULT 'manual'`)
   // Post-swap in-range liquidity from the Swap event — the anchor for
   // historical state reconstruction. NULL on rows ingested before this
   // column existed until liq-backfill fills them.
-  const swapCols = db.prepare(`PRAGMA table_info(swaps)`).all() as { name: string }[]
-  if (!swapCols.some((c) => c.name === 'liquidity')) {
-    db.exec(`ALTER TABLE swaps ADD COLUMN liquidity TEXT`)
-  }
+  addColumn('swaps', 'liquidity TEXT')
   // v4 + multi-quote: hooks (v4 pools; 0x0 = hookless) and the quote
   // currency each pool is priced in ('WETH' | 'ETH' native | 'USDG').
-  const poolCols = db.prepare(`PRAGMA table_info(pools)`).all() as { name: string }[]
-  if (!poolCols.some((c) => c.name === 'hooks')) {
-    db.exec(`ALTER TABLE pools ADD COLUMN hooks TEXT`)
-  }
-  if (!poolCols.some((c) => c.name === 'quote_symbol')) {
-    db.exec(`ALTER TABLE pools ADD COLUMN quote_symbol TEXT`)
-  }
+  addColumn('pools', 'hooks TEXT')
+  addColumn('pools', 'quote_symbol TEXT')
 }
 
 export function getMeta(db: Database.Database, key: string): string | undefined {

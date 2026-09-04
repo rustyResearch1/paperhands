@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/.next
+data
+backups
+content
+.git
+*.log
+.env
+.env.local
+.claude
