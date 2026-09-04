@@ -109,6 +109,34 @@ async function liqBackfill() {
   console.log(`liq-backfill: done — ${stats.liq} liq events, ${stats.missing} swaps still missing liquidity`)
 }
 
+/**
+ * v4 is the busiest venue — cap the sweep to what replay can actually use
+ * and record its own floor (v4 reconstruction is valid from here forward).
+ */
+async function v4Backfill(blocksBack: number) {
+  const { fetchV4Logs, registerV4Pool } = await import('./discoverV4.js')
+  const { insertLiqEvents } = await import('./discover.js')
+  const { Ingestor } = await import('./watch.js')
+  const cursor = Number(getMeta(db, 'watch_cursor') ?? 0)
+  const liqFrom = Number(getMeta(db, 'liq_from') ?? 0)
+  if (!cursor || !liqFrom) throw new Error('run discover + liq-backfill first')
+  const from = Math.max(liqFrom, cursor - blocksBack)
+  setMeta(db, 'v4_liq_from', String(from))
+  const ing = new Ingestor(client, db)
+  await ing.clock.sync()
+  console.log(`v4-backfill: PoolManager activity over ${from}..${cursor}`)
+  const chunk = 20_000
+  for (let start = from; start <= cursor; start += chunk) {
+    const end = Math.min(start + chunk - 1, cursor)
+    const v4 = await withRetries(`v4 ${start}..${end}`, () => fetchV4Logs(client, BigInt(start), BigInt(end)))
+    for (const init of v4.inits) await registerV4Pool(client, db, init)
+    const r = await ing.ingest(v4.swaps)
+    const liq = insertLiqEvents(db, v4.liq)
+    console.log(`v4-backfill: ${start}..${end} inits=${v4.inits.length} swaps=${r.ingested}/${v4.swaps.length} pools+${r.newPools} liq+${liq}`)
+  }
+  console.log('v4-backfill: done')
+}
+
 /** Prove the replay engine: re-execute recorded swaps, compare to what happened. */
 async function replayValidate(poolArg?: string) {
   const pool =
@@ -155,30 +183,7 @@ if (cmd === 'discover') {
   console.log(`\nsaved: ${file}`)
   process.exit(0)
 } else if (cmd === 'v4-backfill') {
-  const { fetchV4Logs, registerV4Pool } = await import('./discoverV4.js')
-  const { insertLiqEvents } = await import('./discover.js')
-  const { Ingestor } = await import('./watch.js')
-  const cursor = Number(getMeta(db, 'watch_cursor') ?? 0)
-  const liqFrom = Number(getMeta(db, 'liq_from') ?? 0)
-  if (!cursor || !liqFrom) throw new Error('run discover + liq-backfill first')
-  // v4 is the busiest venue — cap the sweep to what replay can actually use
-  // and record its own floor (v4 reconstruction is valid from here forward).
-  const blocksBack = Number(process.argv[3] ?? 200_000)
-  const from = Math.max(liqFrom, cursor - blocksBack)
-  setMeta(db, 'v4_liq_from', String(from))
-  const ing = new Ingestor(client, db)
-  await ing.clock.sync()
-  console.log(`v4-backfill: PoolManager activity over ${from}..${cursor}`)
-  const chunk = 20_000
-  for (let start = from; start <= cursor; start += chunk) {
-    const end = Math.min(start + chunk - 1, cursor)
-    const v4 = await withRetries(`v4 ${start}..${end}`, () => fetchV4Logs(client, BigInt(start), BigInt(end)))
-    for (const init of v4.inits) await registerV4Pool(client, db, init)
-    const r = await ing.ingest(v4.swaps)
-    const liq = insertLiqEvents(db, v4.liq)
-    console.log(`v4-backfill: ${start}..${end} inits=${v4.inits.length} swaps=${r.ingested}/${v4.swaps.length} pools+${r.newPools} liq+${liq}`)
-  }
-  console.log('v4-backfill: done')
+  await v4Backfill(Number(process.argv[3] ?? 200_000))
   process.exit(0)
 } else if (cmd === 'migrate-quotes') {
   const { USDG } = await import('@paperhands/chain')
@@ -243,6 +248,23 @@ if (cmd === 'discover') {
   await watchLoop(client, db)
 } else if (cmd === 'all') {
   await discover()
+  await watchLoop(client, db)
+} else if (cmd === 'serve') {
+  // Deploy entrypoint: bootstrap an empty volume end-to-end, then watch.
+  // Each stage is skipped when its meta marker already exists, so restarts
+  // resume instead of resweeping.
+  if (!getMeta(db, 'watch_cursor')) {
+    console.log('serve: fresh database — running discovery')
+    await discover()
+  }
+  if (!getMeta(db, 'liq_from')) {
+    console.log('serve: backfilling liquidity events')
+    await liqBackfill()
+  }
+  if (!getMeta(db, 'v4_liq_from')) {
+    console.log('serve: backfilling v4')
+    await v4Backfill(60_000)
+  }
   await watchLoop(client, db)
 } else {
   console.error(`unknown command: ${cmd} (use discover | liq-backfill | replay-validate | watch | all)`)

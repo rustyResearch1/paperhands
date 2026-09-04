@@ -5,7 +5,7 @@
 set -m
 
 cd /app/packages/indexer
-node_modules/.bin/tsx src/main.ts all &
+node_modules/.bin/tsx src/main.ts serve &
 INDEXER=$!
 
 cd /app/apps/web
