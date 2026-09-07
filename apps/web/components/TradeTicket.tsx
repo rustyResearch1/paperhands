@@ -12,6 +12,7 @@ interface TicketQuote {
   fillRatio: number
   exhaustedWindow: boolean
   priceImpactBps: number
+  priceMovePct: number
   feeBps: number
   spotPrice: number
   execPrice: number
@@ -189,6 +190,17 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
             <Row label="spot" value={`${formatPrice(quote.spotPrice)} ETH`} />
             <Row label="your fill" value={`${formatPrice(quote.execPrice)} ETH`} />
             <Row label="price impact" value={formatBps(quote.priceImpactBps)} valueClass={impactClass(quote.priceImpactBps)} />
+            <Row
+              label="moves the pool price"
+              value={`${quote.priceMovePct >= 0 ? '+' : ''}${Math.abs(quote.priceMovePct) < 0.005 ? '<0.01' : quote.priceMovePct.toFixed(2)}%`}
+              valueClass={
+                Math.abs(quote.priceMovePct) > 5
+                  ? 'text-down font-bold'
+                  : Math.abs(quote.priceMovePct) > 1
+                    ? 'text-stamp'
+                    : 'text-graphite'
+              }
+            />
             <Row label="lp fee" value={formatBps(quote.feeBps)} />
             <Row
               label="you receive"

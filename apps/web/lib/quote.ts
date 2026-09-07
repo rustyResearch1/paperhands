@@ -71,6 +71,8 @@ export interface TicketQuote {
   fillRatio: number
   exhaustedWindow: boolean
   priceImpactBps: number
+  /** Signed % the order moves the pool's spot price (buys positive). */
+  priceMovePct: number
   feeBps: number
   /** quote (ETH) per base token, human units */
   spotPrice: number
@@ -123,6 +125,13 @@ export async function ticketQuote(
     q = quoteV3ExactIn(snap.state, amountIn, baseIsToken0)
   }
 
+  // How far this order shoves the pool's own price — the "mcap move" a
+  // paper trade would cause if it were real. Signed: buys positive.
+  const sqrtBefore = Number(snap.state.sqrtPriceX96) / 2 ** 96
+  const sqrtAfter = Number(q.sqrtPriceX96After) / 2 ** 96
+  const rawRatio = sqrtBefore > 0 ? (sqrtAfter / sqrtBefore) ** 2 : 1
+  const priceMovePct = ((baseIsToken0 ? rawRatio : 1 / rawRatio) - 1) * 100
+
   const out: TicketQuote = {
     side,
     amountIn: q.amountIn.toString(),
@@ -131,6 +140,7 @@ export async function ticketQuote(
     fillRatio: q.fillRatio,
     exhaustedWindow: q.exhaustedWindow,
     priceImpactBps: q.priceImpactBps,
+    priceMovePct,
     feeBps: q.feeBps,
     ...humanPrices(q, side, meta.baseDecimals),
     block: snap.blockNumber.toString(),
