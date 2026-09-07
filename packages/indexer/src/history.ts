@@ -114,7 +114,10 @@ export async function reconstructAt(
   // The snapshot must be pinned to the cursor so liq_events coverage aligns,
   // and full nodes only serve recent state — a lagging watch loop breaks both.
   const head = Number(await client.getBlockNumber())
-  if (head - cursor > 2000) {
+  // The RPC serves recent-but-not-archival state; ~1h of blocks is well within
+  // what it honors, and a busy watcher legitimately runs a few thousand blocks
+  // behind head. Only refuse when the gap means truly pruned state.
+  if (head - cursor > 50_000) {
     throw new Error(
       `indexer cursor lags the chain head by ${head - cursor} blocks — start the watch loop and let it catch up`,
     )

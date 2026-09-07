@@ -71,19 +71,27 @@ export async function readV3Pool(
 
   // A failed word read MUST fail the whole snapshot: silently dropping a word
   // while tickWindow still claims coverage would let the engine simulate
-  // through missing liquidity and overstate fills with no flag.
+  // through missing liquidity and overstate fills with no flag. One retry
+  // absorbs transient RPC hiccups; a second failure still fails loudly.
   const wordResults = await Promise.all(
     wordIndexes.map(async (w) => {
-      try {
-        return await client.readContract({
+      const read = () =>
+        client.readContract({
           address: UNISWAP.v3TickLens,
           abi: tickLensAbi,
           functionName: 'getPopulatedTicksInWord',
           args: [pool, w],
           blockNumber,
         })
-      } catch (err) {
-        throw new Error(`TickLens word ${w} unreadable for ${pool}: ${(err as Error).message.split('\n')[0]}`)
+      try {
+        return await read()
+      } catch {
+        await new Promise((r) => setTimeout(r, 400))
+        try {
+          return await read()
+        } catch (err) {
+          throw new Error(`TickLens word ${w} unreadable for ${pool}: ${(err as Error).message.split('\n')[0]}`)
+        }
       }
     }),
   )
