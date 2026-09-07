@@ -19,6 +19,7 @@ interface SwapRow {
   amount1: string
   trader: string | null
   tx_hash: string
+  log_index: number
 }
 
 export default async function TokenPage({ params }: { params: Promise<{ pool: string }> }) {
@@ -63,7 +64,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
 
   const usdRate = ethUsdRate()
   const tape = db
-    .prepare('SELECT ts, amount0, amount1, trader, tx_hash FROM swaps WHERE pool = ? ORDER BY block DESC, log_index DESC LIMIT 25')
+    .prepare('SELECT ts, amount0, amount1, trader, tx_hash, log_index FROM swaps WHERE pool = ? ORDER BY block DESC, log_index DESC LIMIT 25')
     .all(pool) as SwapRow[]
   const baseIsToken0 = meta.base_is_token0 === 1
   const depth = quoteDepth({ ...poolRow, quoteDecimals: meta.quoteDecimals })
@@ -144,7 +145,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
                   const isBuy = ethAmt > 0n // ETH flowed into the pool
                   const abs = ethAmt < 0n ? -ethAmt : ethAmt
                   return (
-                    <tr key={s.tx_hash + s.ts}>
+                    <tr key={`${s.tx_hash}:${s.log_index}`}>
                       <td className={isBuy ? 'text-up' : 'text-down'}>{isBuy ? 'buy' : 'sell'}</td>
                       <td>{formatEth(abs)}</td>
                       <td className="text-graphite">
