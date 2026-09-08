@@ -50,22 +50,24 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 
 ## Stage H — Multi-chain best execution (Robinhood Chain · Solana · BSC)
 Differentiator: one terminal, honest numbers, best route per chain, cross-chain comparison, real execution everywhere, non-custodial.
-- [ ] H1 Cross-chain quote layer (`lib/x/`): unified XQuote {fill, impact, route, source, sold-right-back, executable, tx}
+- [x] H1 Cross-chain quote layer (`lib/x/`): unified XQuote {fill, impact, route, source, sold-right-back, executable, tx, runner-up}
       · RH = our engine (unchanged) · SOL = Jupiter (all Solana DEXes) + reverse quote for instant exit
-      · BSC = PancakeSwap v3 through our exact engine (fork of Uniswap v3: slot0 + TickLens + tick-walk) vs aggregator; best wins
-- [ ] H2 `/api/v1/xquote?chain=rh|sol|bsc` public endpoint (+ docs)
-- [ ] H3 Wallets: EVM injected on BSC (chain 56) via wagmi; Phantom/Solflare via the wallet-standard `window.solana` provider
-- [ ] H4 Real execution: SOL = Jupiter swap tx (built for the user's pubkey, signed in Phantom) · BSC = PancakeSwap SmartRouter calldata
-      (our SwapRouter02 builder, Pancake addresses) with ERC20 approvals; aggregator route as fallback
-- [ ] H5 Markets per chain (GeckoTerminal trending + DexScreener) with the honesty columns; token pages `/x/[chain]/[token]`
-      with chart (GeckoTerminal OHLCV), honest ticket, real execution, LP card
-- [ ] H6 Cross-chain best-execution view: same asset (USDC/USDT/ETH/BTC/SOL/BNB), same USD size → fill + impact + gas on every chain
-- [ ] H7 Portfolio: BSC + Solana holdings valued at what the aggregator would pay (Jupiter / engine), alongside RH
+      · BSC = PancakeSwap v3 through our exact engine (slot0 + TickLens + tick-walk, verified: 28 routes for CAKE) vs KyberSwap; best wins
+- [x] H2 `/api/v1/xquote`, `/api/v1/xtx`, `/api/v1/xcandles`, `/api/v1/xsearch` (+ docs)
+- [x] H3 Wallets: EVM injected on BSC (chain 56) via wagmi; Phantom/Solflare/Backpack via the injected `window.solana` provider
+- [x] H4 Real execution: SOL = Jupiter swap tx built for the user's pubkey, signed in Phantom (tx build verified) · BSC = PancakeSwap
+      SmartRouter calldata (our builder) or KyberSwap calldata, ERC20 approvals per spender (Kyber route eth_call ok, 244k gas)
+- [x] H5 Markets per chain (`/x/sol`, `/x/bsc`: GeckoTerminal trending + volume leaders, search) and token pages `/x/[chain]/[token]`
+      (chart, pools, honest ticket). LP card: Stage I
+- [x] H6 `/x` best execution: the same $100–$10k into USDC/USDG, USDT, ETH, BTC, SOL on every chain → value received, cost/edge in bps,
+      impact, gas, who quoted (60s cache)
+- [x] H7 Portfolio → Real: Solana (Phantom) + BNB Chain holdings valued by full-size sell quotes (`/api/v1/xvalue`), alongside RH
+- [ ] H8 Practice ledger on Solana + BNB Chain (paper SOL / BNB bankroll, fills from the same quotes, positions at what the venue would pay)
 
 ## Stage I — Best LP: Robinhood Chain + Solana (+ BSC)
-- [ ] I1 LP screener `/lp`: RH pools (our ledger) · Solana Orca Whirlpools + Meteora DLMM (their APIs) · BSC PancakeSwap v3;
-      ranked by fee yield (24h fees / TVL), volume/TVL, realized σ (minute OHLCV) → fee-to-vol score
-- [ ] I2 Range suggester for any pool (σ from OHLCV) → tight / balanced / wide, with expected in-range probability
+- [x] I1 LP screener `/lp` + `/api/v1/lp/pools`: RH (ledger) · Orca + Meteora (Solana) · PancakeSwap v3 (BSC); fee yield/day, APR,
+      vol/TVL, realized σ (our candles / GeckoTerminal minute OHLCV), fee-to-vol score; chain filter
+- [x] I2 Range suggester on every screener row (1σ / 2σ / 4σ from realized σ)
 - [ ] I3 LP execution: BSC PancakeSwap v3 NFPM mint / collect / close (our builders, Pancake addresses);
       Solana Orca Whirlpools open/close position (tx built server-side for the user's pubkey, signed in Phantom); Meteora DLMM after
 - [ ] I4 LP backtest beyond RH: volume-share backtest from minute OHLCV + current in-range liquidity (labelled approximate)

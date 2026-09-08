@@ -30,6 +30,7 @@ export const viewport: Viewport = { themeColor: '#ffffff', width: 'device-width'
 
 const NAV = [
   { href: '/', label: 'Markets' },
+  { href: '/lp', label: 'LP' },
   { href: '/wire', label: 'Wire' },
   { href: '/portfolio', label: 'Portfolio' },
   { href: '/leaderboard', label: 'Leaderboard' },

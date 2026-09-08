@@ -215,6 +215,15 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
         setTxHash(hash)
         setTxState('pending')
         setStage('confirming')
+        // Remember the token so the portfolio can find it without an indexer.
+        try {
+          const key = 'ph_bsc_tokens'
+          const list = JSON.parse(window.localStorage.getItem(key) ?? '[]') as { address: string }[]
+          if (!list.some((t) => t.address.toLowerCase() === token.address.toLowerCase()))
+            window.localStorage.setItem(key, JSON.stringify([...list, { address: token.address, symbol: token.symbol, decimals: token.decimals }].slice(-30)))
+        } catch {
+          // storage unavailable
+        }
       }
     } catch (e) {
       setStage('idle')

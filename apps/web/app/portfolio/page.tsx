@@ -2,6 +2,7 @@ import Link from 'next/link'
 import AccountKey from '@/components/AccountKey'
 import ModeGate from '@/components/ModeGate'
 import RealPortfolio from '@/components/RealPortfolio'
+import XPortfolio from '@/components/XPortfolio'
 import { db } from '@/lib/db'
 import { formatEth, formatQty, formatUsd } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
@@ -164,7 +165,21 @@ export default async function Portfolio() {
     </div>
   )
 
-  return <ModeGate practice={practice} real={<RealPortfolio usdRate={usdRate} />} />
+  return (
+    <ModeGate
+      practice={practice}
+      real={
+        <div className="space-y-5">
+          <RealPortfolio usdRate={usdRate} />
+          <div className="rise">
+            <h2 className="text-[20px] font-semibold tracking-tight">Other chains</h2>
+            <p className="text-[13.5px] text-muted">Same rule everywhere: a bag is worth what the venue would pay for all of it, not the chart.</p>
+          </div>
+          <XPortfolio />
+        </div>
+      }
+    />
+  )
 }
 
 function Kpi({ label, value, hero, tone }: { label: string; value: string; hero?: boolean; tone?: 'up' | 'down' }) {

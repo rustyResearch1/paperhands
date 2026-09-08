@@ -35,6 +35,42 @@ const ENDPOINTS = [
     example: '/api/v1/lp?pool=0x588b0785f50063260003b7790c42f1ef74902746&range=30&eth=1&hours=24',
   },
   {
+    path: '/api/v1/xquote',
+    params: 'chain=rh|sol|bsc, token (address or mint), side=buy|sell, amount (raw: wei/lamports for buys, token units for sells)',
+    what: 'One honest quote shape on every chain: fill, impact, route and who quoted it (our exact engine on Robinhood Chain and PancakeSwap v3; Jupiter on Solana; KyberSwap when it fills better on BNB Chain), sold-right-back, gas, and whether one wallet transaction can sign it — plus the runner-up fill.',
+    example: '/api/v1/xquote?chain=sol&token=DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263&side=buy&amount=100000000',
+  },
+  {
+    path: '/api/v1/xtx',
+    params: 'POST { quote, user, slippageBps } — the quote from xquote (≤60s old), the signer address or pubkey',
+    what: 'The transaction that wallet signs: a base64 VersionedTransaction on Solana (Jupiter), {to, data, value} on BNB Chain (PancakeSwap SmartRouter calldata from our route, or KyberSwap’s). Never signed or sent here.',
+    example: '/docs',
+  },
+  {
+    path: '/api/v1/xvalue',
+    params: 'POST { chain, holdings: [{ token, amount }] } — up to 15 bags',
+    what: 'What the venue would pay for each bag right now: a full-size sell quote per token (engine on Robinhood Chain / PancakeSwap, Jupiter on Solana, KyberSwap when better). The number a portfolio should show instead of the chart price.',
+    example: '/docs',
+  },
+  {
+    path: '/api/v1/lp/pools',
+    params: 'chains=rh,sol,bsc, limit',
+    what: 'The LP screener: Robinhood Chain, Orca + Meteora (Solana) and PancakeSwap v3 (BNB Chain) pools with 24h fee yield, volume/TVL, realized σ and the fee-to-vol score, plus 1σ / 2σ / 4σ ranges.',
+    example: '/api/v1/lp/pools?chains=sol,bsc&limit=20',
+  },
+  {
+    path: '/api/v1/xprice',
+    params: '—',
+    what: 'USD prices of ETH (Robinhood Chain), SOL and BNB, from the same sources the quotes use.',
+    example: '/api/v1/xprice',
+  },
+  {
+    path: '/api/v1/xcandles',
+    params: 'chain=sol|bsc, pool, tf=minute|hour|day, agg, limit',
+    what: 'USD candles for any pool on Solana or BNB Chain (GeckoTerminal).',
+    example: '/api/v1/xcandles?chain=sol&pool=5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9&limit=20',
+  },
+  {
     path: '/api/health',
     params: '—',
     what: 'Liveness and freshness: the indexer cursor (last ingested block), pool count, and the age of the Wire ranking. Poll it before trusting anything time-sensitive.',
