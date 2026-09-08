@@ -35,6 +35,12 @@ const ENDPOINTS = [
     example: '/api/v1/lp?pool=0x588b0785f50063260003b7790c42f1ef74902746&range=30&eth=1&hours=24',
   },
   {
+    path: '/api/health',
+    params: '—',
+    what: 'Liveness and freshness: the indexer cursor (last ingested block), pool count, and the age of the Wire ranking. Poll it before trusting anything time-sensitive.',
+    example: '/api/health',
+  },
+  {
     path: '/api/v1/alerts',
     params: 'limit (≤100)',
     what: 'What changed a position’s truth in the last few hours: liquidity pulled (≥50% of active depth in one transaction), dumps (−50% in 3h with real volume) and volume surges (≥4× the previous half hour). Straight from the ledger, no opinions.',
