@@ -30,21 +30,21 @@ export default function HandleForm({ current }: { current: string | null }) {
   }
 
   return (
-    <form onSubmit={save} className="mb-5 flex items-center gap-2 text-[12px]">
-      <label htmlFor="handle" className="rule-label">
-        sign the wall as
+    <form onSubmit={save} className="flex flex-wrap items-center gap-2 text-[13.5px]">
+      <label htmlFor="handle" className="label">
+        Your handle
       </label>
       <input
         id="handle"
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="your handle"
+        placeholder="e.g. diamondhands"
         maxLength={24}
-        className="border-2 border-ink bg-paper px-2 py-1 w-44 focus:outline-2 focus:outline-pen"
+        className="field field-sm w-48"
       />
-      <button type="submit" disabled={saving || !value.trim()} className="border-2 border-ink px-3 py-1 font-bold uppercase tracking-wider bg-paper hover:bg-marker/40 disabled:opacity-40">
-        {saving ? '…' : 'sign'}
+      <button type="submit" disabled={saving || !value.trim()} className="btn btn-sm btn-ghost">
+        {saving ? '…' : 'Save'}
       </button>
       {error && <span className="text-down">{error}</span>}
     </form>

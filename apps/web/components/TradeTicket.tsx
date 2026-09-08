@@ -34,12 +34,17 @@ interface Props {
 const BUY_PRESETS = ['0.1', '0.5', '1', '5']
 const SELL_PRESETS = [25, 50, 75, 100]
 
+/**
+ * The order sheet. Every number is an exact simulation through live
+ * liquidity, routed across every venue the token has.
+ */
 export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei, positionQty }: Props) {
   const router = useRouter()
   const [side, setSide] = useState<'buy' | 'sell'>('buy')
   const [ethIn, setEthIn] = useState('0.5')
   const [sellPct, setSellPct] = useState(50)
   const [quote, setQuote] = useState<TicketQuote | null>(null)
+  const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filled, setFilled] = useState<string | null>(null)
@@ -64,6 +69,7 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
       return
     }
     const mySeq = ++seq.current
+    setLoading(true)
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/quote?pool=${pool}&side=${side}&amount=${amount}`)
@@ -73,6 +79,8 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
         else setQuote(q)
       } catch {
         if (seq.current === mySeq) setError('Quote failed — the RPC may be busy. It retries as you type.')
+      } finally {
+        if (seq.current === mySeq) setLoading(false)
       }
     }, 350)
     return () => clearTimeout(t)
@@ -93,8 +101,12 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
       if (!r.ok) {
         setError(r.error)
       } else {
-        setFilled(side === 'buy' ? `bought ${formatQty(BigInt(r.quote.amountOut), baseDecimals)} ${baseSymbol}` : `sold for ${formatEth(BigInt(r.quote.amountOut))} ETH`)
-        setTimeout(() => setFilled(null), 2500)
+        setFilled(
+          side === 'buy'
+            ? `Bought ${formatQty(BigInt(r.quote.amountOut), baseDecimals)} ${baseSymbol}`
+            : `Sold for ${formatEth(BigInt(r.quote.amountOut))} ETH`,
+        )
+        setTimeout(() => setFilled(null), 2400)
         router.refresh()
       }
     } catch {
@@ -104,57 +116,61 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
     }
   }
 
-  const impactClass = (bps: number) => (bps > 300 ? 'text-down font-bold' : bps > 75 ? 'text-stamp' : 'text-ink')
+  const impactClass = (bps: number) => (bps > 300 ? 'text-down font-semibold' : bps > 75 ? 'text-warn' : '')
   const retention = quote?.instantExit ? Number(BigInt(quote.instantExit)) / Number(BigInt(quote.amountIn)) : null
+  const blocked = Boolean(quote && (quote.fillRatio < 1 || quote.exhaustedWindow))
 
   return (
-    <div className="slip relative p-4">
+    <div className="card relative p-5">
       {filled && (
-        <div className="absolute inset-0 z-10 grid place-items-center bg-paper/80">
-          <div className="text-center">
-            <span className="stamp text-up text-xl px-3 py-1">filled</span>
-            <div className="mt-2 text-[12px] text-graphite">{filled}</div>
+        <div className="absolute inset-0 z-10 grid place-items-center rounded-[var(--radius)] bg-bg/85 backdrop-blur-sm">
+          <div className="rise text-center">
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-up text-white text-xl">✓</div>
+            <div className="font-semibold">Filled</div>
+            <div className="text-[13px] text-muted">{filled}</div>
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-3">
-        <span className="rule-label">order slip</span>
-        <span className="stamp text-stamp text-[9px]">simulated</span>
+      <div className="mb-4 flex items-center justify-between">
+        <span className="label">Order</span>
+        <span className="pill">Practice · simulated</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-0 border-1.5 border-ink mb-4" role="tablist">
+      <div className="seg mb-4 w-full" role="tablist">
         {(['buy', 'sell'] as const).map((s) => (
           <button
             key={s}
             role="tab"
             aria-selected={side === s}
             onClick={() => setSide(s)}
-            className={`py-2 text-[12px] font-bold uppercase tracking-[0.12em] border border-ink transition-colors ${
-              side === s ? (s === 'buy' ? 'bg-up text-paper' : 'bg-down text-paper') : 'bg-paper text-graphite hover:text-ink'
-            }`}
+            className="flex-1"
+            style={side === s ? { color: s === 'buy' ? 'var(--up)' : 'var(--down)' } : undefined}
           >
-            {s}
+            {s === 'buy' ? 'Buy' : 'Sell'}
           </button>
         ))}
       </div>
 
       {side === 'buy' ? (
         <div>
-          <label className="rule-label block mb-1" htmlFor="eth-in">
-            spend (paper ETH) — bankroll {formatEth(BigInt(balanceWei))}
+          <label className="label mb-1.5 block" htmlFor="eth-in">
+            Spend · bankroll {formatEth(BigInt(balanceWei), 3)} ETH
           </label>
-          <input
-            id="eth-in"
-            type="text"
-            inputMode="decimal"
-            value={ethIn}
-            onChange={(e) => setEthIn(e.target.value)}
-            className="w-full border-2 border-ink bg-paper px-3 py-2 text-lg font-semibold focus:outline-2 focus:outline-pen"
-          />
-          <div className="flex gap-1 mt-2">
+          <div className="relative">
+            <input
+              id="eth-in"
+              type="text"
+              inputMode="decimal"
+              value={ethIn}
+              onChange={(e) => setEthIn(e.target.value)}
+              className="field num pr-14"
+            />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-muted">ETH</span>
+          </div>
+          <div className="mt-2 flex gap-1.5">
             {BUY_PRESETS.map((p) => (
-              <button key={p} onClick={() => setEthIn(p)} className="border border-grid px-2 py-0.5 text-[11px] hover:border-ink">
+              <button key={p} onClick={() => setEthIn(p)} className={`chip h-8 px-3 ${ethIn === p ? 'chip-active' : ''}`}>
                 {p}
               </button>
             ))}
@@ -162,8 +178,8 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
         </div>
       ) : (
         <div>
-          <label className="rule-label block mb-1" htmlFor="sell-pct">
-            sell {sellPct}% of {formatQty(held, baseDecimals)} {baseSymbol}
+          <label className="label mb-1.5 block" htmlFor="sell-pct">
+            Sell {sellPct}% of {formatQty(held, baseDecimals)} {baseSymbol}
           </label>
           <input
             id="sell-pct"
@@ -172,102 +188,101 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
             max={100}
             value={sellPct}
             onChange={(e) => setSellPct(Number(e.target.value))}
-            className="w-full accent-pen"
+            className="w-full accent-[var(--down)]"
           />
-          <div className="flex gap-1 mt-1">
+          <div className="mt-1 flex gap-1.5">
             {SELL_PRESETS.map((p) => (
-              <button key={p} onClick={() => setSellPct(p)} className="border border-grid px-2 py-0.5 text-[11px] hover:border-ink">
+              <button key={p} onClick={() => setSellPct(p)} className={`chip h-8 px-3 ${sellPct === p ? 'chip-active' : ''}`}>
                 {p}%
               </button>
             ))}
           </div>
-          {held === 0n && <p className="text-down mt-2 text-[12px]">No position to sell yet.</p>}
+          {held === 0n && <p className="mt-2 text-[13px] text-down">No position to sell yet.</p>}
         </div>
       )}
 
-      <div className="mt-4 border-t-2 border-dashed border-ink pt-3 space-y-1.5 text-[12px]">
+      <div className={`mt-5 space-y-2 border-t border-line pt-4 text-[13.5px] transition-opacity ${loading ? 'opacity-60' : ''}`}>
         {quote ? (
           <>
             {quote.route && (
               <Row
-                label={quote.route.twoLeg ? 'routed (2 legs)' : 'routed'}
+                label={quote.route.twoLeg ? 'Route · 2 legs' : 'Route'}
                 value={quote.route.label}
-                valueClass={quote.route.hooked ? 'text-stamp' : 'text-pen'}
+                valueClass={quote.route.hooked ? 'text-warn' : 'text-pen'}
+                mono={false}
               />
             )}
-            <Row label="spot" value={`${formatPrice(quote.spotPrice)} ETH`} />
-            <Row label="your fill" value={`${formatPrice(quote.execPrice)} ETH`} />
-            <Row label="price impact" value={formatBps(quote.priceImpactBps)} valueClass={impactClass(quote.priceImpactBps)} />
+            <Row label="Spot" value={`${formatPrice(quote.spotPrice)} ETH`} />
+            <Row label="Your fill" value={`${formatPrice(quote.execPrice)} ETH`} />
+            <Row label="Price impact" value={formatBps(quote.priceImpactBps)} valueClass={impactClass(quote.priceImpactBps)} />
             <Row
-              label="moves the pool price"
+              label="Moves the pool"
               value={`${quote.priceMovePct >= 0 ? '+' : ''}${Math.abs(quote.priceMovePct) < 0.005 ? '<0.01' : quote.priceMovePct.toFixed(2)}%`}
-              valueClass={
-                Math.abs(quote.priceMovePct) > 5
-                  ? 'text-down font-bold'
-                  : Math.abs(quote.priceMovePct) > 1
-                    ? 'text-stamp'
-                    : 'text-graphite'
-              }
+              valueClass={Math.abs(quote.priceMovePct) > 5 ? 'text-down font-semibold' : Math.abs(quote.priceMovePct) > 1 ? 'text-warn' : 'text-muted'}
             />
-            <Row label="lp fee" value={formatBps(quote.feeBps)} />
+            <Row label="LP fee" value={formatBps(quote.feeBps)} />
             <Row
-              label="you receive"
-              value={
-                side === 'buy'
-                  ? `${formatQty(BigInt(quote.amountOut), baseDecimals)} ${baseSymbol}`
-                  : `${formatEth(BigInt(quote.amountOut))} ETH`
-              }
+              label="You receive"
+              value={side === 'buy' ? `${formatQty(BigInt(quote.amountOut), baseDecimals)} ${baseSymbol}` : `${formatEth(BigInt(quote.amountOut))} ETH`}
               strong
             />
             {side === 'buy' && quote.instantExit && retention !== null && (
               <Row
-                label="if you sold it right back"
-                value={`${formatEth(BigInt(quote.instantExit))} ETH (${(retention * 100).toFixed(1)}%)`}
-                valueClass={retention < 0.9 ? 'text-down' : 'text-graphite'}
+                label="Sold right back"
+                value={`${formatEth(BigInt(quote.instantExit))} ETH · ${(retention * 100).toFixed(1)}%`}
+                valueClass={retention < 0.9 ? 'text-down' : 'text-muted'}
               />
             )}
             {side === 'buy' && quote.markInflation && quote.markInflation > 1.05 && (
-              <p className="pt-1">
-                <span className="hilite font-bold">
-                  a PnL screen would mark this bag ×{quote.markInflation.toFixed(1)} what the pool pays
-                </span>
+              <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">
+                A PnL screen would mark this bag at <b>{quote.markInflation.toFixed(1)}×</b> what the pool would pay.
               </p>
             )}
-            {(quote.fillRatio < 1 || quote.exhaustedWindow) && (
-              <p className="text-down font-bold pt-1">
-                ✗ pool cannot absorb this size ({(quote.fillRatio * 100).toFixed(1)}% fills) — order will be rejected
+            {blocked && (
+              <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">
+                The pool can&rsquo;t absorb this size — only {(quote.fillRatio * 100).toFixed(1)}% fills. Trade smaller.
               </p>
             )}
           </>
         ) : (
-          <p className="text-faint">enter a size to see the honest fill…</p>
+          <p className="text-faint">Enter a size to see the honest fill.</p>
         )}
-        {error && <p className="text-down pt-1">{error}</p>}
+        {error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
       </div>
 
       <button
         onClick={submit}
-        disabled={pending || !quote || rawAmount() <= 0n}
-        className={`mt-4 w-full border-2 border-ink py-2.5 text-[13px] font-bold uppercase tracking-[0.14em] shadow-[3px_3px_0_rgba(28,33,39,0.25)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-40 disabled:cursor-not-allowed ${
-          side === 'buy' ? 'bg-up text-paper' : 'bg-down text-paper'
-        }`}
+        disabled={pending || !quote || blocked || rawAmount() <= 0n}
+        className={`btn mt-5 w-full ${side === 'buy' ? 'btn-primary' : 'btn-danger'}`}
       >
-        {pending ? 'stamping…' : side === 'buy' ? `buy ${baseSymbol}` : `sell ${baseSymbol}`}
+        {pending ? 'Placing…' : side === 'buy' ? `Buy ${baseSymbol}` : `Sell ${baseSymbol}`}
       </button>
-      <p className="rule-label mt-2 text-center">
+      <p className="mt-2 text-center text-[12px] text-faint">
         {quote?.route?.hooked
-          ? '⚓ hooked pool: quoted by the chain itself (hook logic included), so no post-trade price preview'
-          : 'best fill across every venue · executes at live pool state, not your screenshot'}
+          ? 'Hook pool: quoted by the chain itself, hook logic included.'
+          : 'Best fill across every venue · executes at live pool state.'}
       </p>
     </div>
   )
 }
 
-function Row({ label, value, strong, valueClass }: { label: string; value: string; strong?: boolean; valueClass?: string }) {
+function Row({
+  label,
+  value,
+  strong,
+  valueClass,
+  mono = true,
+}: {
+  label: string
+  value: string
+  strong?: boolean
+  valueClass?: string
+  mono?: boolean
+}) {
   return (
-    <div className="flex justify-between gap-3">
-      <span className="text-graphite">{label}</span>
-      <span className={`${strong ? 'font-bold' : ''} ${valueClass ?? ''} tabular-nums text-right`}>{value}</span>
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-muted">{label}</span>
+      <span className={`${mono ? 'num' : ''} text-right ${strong ? 'font-semibold' : ''} ${valueClass ?? ''}`}>{value}</span>
     </div>
   )
 }

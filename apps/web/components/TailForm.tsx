@@ -31,59 +31,43 @@ export default function TailForm({ wallet, activeSize }: { wallet: string; activ
 
   if (activeSize) {
     return (
-      <div className="slip p-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="rule-label">tailing</span>
-          <span className="stamp text-up text-[9px]">active</span>
+      <div className="card p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="label">Tailing</span>
+          <span className="pill pill-up">active</span>
         </div>
-        <p className="text-[12px] mb-3">
-          Mirroring this wallet with <b>{formatEth(BigInt(activeSize))} ETH</b> per buy. Its sells exit your
-          tailed positions.
+        <p className="mb-4 text-[13.5px]">
+          Mirroring this wallet with <b>{formatEth(BigInt(activeSize))} ETH</b> per buy. Its sells exit your tailed positions.
         </p>
-        <button
-          onClick={() => post({ wallet, stop: true })}
-          disabled={pending}
-          className="w-full border-2 border-ink py-2 text-[12px] font-bold uppercase tracking-[0.14em] bg-down text-paper shadow-[3px_3px_0_rgba(28,33,39,0.25)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-40"
-        >
-          {pending ? '…' : 'stop tailing'}
+        <button onClick={() => post({ wallet, stop: true })} disabled={pending} className="btn btn-danger w-full">
+          {pending ? '…' : 'Stop tailing'}
         </button>
-        {error && <p className="text-down mt-2 text-[12px]">{error}</p>}
+        {error && <p className="mt-2 text-[13px] text-down">{error}</p>}
       </div>
     )
   }
 
   return (
-    <div className="slip p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="rule-label">tail this wallet</span>
-        <span className="stamp text-stamp text-[9px]">simulated</span>
+    <div className="card p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="label">Tail this wallet</span>
+        <span className="pill">practice</span>
       </div>
-      <label htmlFor="tail-size" className="rule-label block mb-1">
-        paper ETH per mirrored buy
+      <label htmlFor="tail-size" className="label mb-1.5 block">
+        Paper ETH per mirrored buy
       </label>
-      <input
-        id="tail-size"
-        type="text"
-        inputMode="decimal"
-        value={size}
-        onChange={(e) => setSize(e.target.value)}
-        className="w-full border-2 border-ink bg-paper px-3 py-2 text-lg font-semibold focus:outline-2 focus:outline-pen"
-      />
-      <div className="flex gap-1 mt-2">
+      <input id="tail-size" type="text" inputMode="decimal" value={size} onChange={(e) => setSize(e.target.value)} className="field num" />
+      <div className="mt-2 flex gap-1.5">
         {['0.1', '0.25', '0.5', '1'].map((p) => (
-          <button key={p} onClick={() => setSize(p)} className="border border-grid px-2 py-0.5 text-[11px] hover:border-ink">
+          <button key={p} onClick={() => setSize(p)} className={`chip h-8 px-3 ${size === p ? 'chip-active' : ''}`}>
             {p}
           </button>
         ))}
       </div>
-      <button
-        onClick={() => post({ wallet, size })}
-        disabled={pending || !(Number.parseFloat(size) > 0)}
-        className="mt-4 w-full border-2 border-ink py-2.5 text-[13px] font-bold uppercase tracking-[0.14em] bg-pen text-paper shadow-[3px_3px_0_rgba(28,33,39,0.25)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-40"
-      >
-        {pending ? 'wiring…' : 'start tailing'}
+      <button onClick={() => post({ wallet, size })} disabled={pending || !(Number.parseFloat(size) > 0)} className="btn btn-pen mt-4 w-full">
+        {pending ? 'Wiring…' : 'Start tailing'}
       </button>
-      {error && <p className="text-down mt-2 text-[12px]">{error}</p>}
+      {error && <p className="mt-2 text-[13px] text-down">{error}</p>}
     </div>
   )
 }

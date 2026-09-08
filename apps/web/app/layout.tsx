@@ -1,60 +1,70 @@
-import type { Metadata } from 'next'
-import { IBM_Plex_Mono } from 'next/font/google'
+import type { Metadata, Viewport } from 'next'
+import { IBM_Plex_Mono, Instrument_Sans } from 'next/font/google'
 import Link from 'next/link'
 import './globals.css'
-import { getOrCreateUser } from '@/lib/session'
+import Ambient from '@/components/Ambient'
+import ModeSwitch from '@/components/ModeSwitch'
+import Providers from '@/components/Providers'
+import WalletButton from '@/components/WalletButton'
 import { formatEth } from '@/lib/format'
+import { getOrCreateUser } from '@/lib/session'
 
-const plex = IBM_Plex_Mono({
-  weight: ['400', '500', '600', '700'],
-  subsets: ['latin'],
-  variable: '--font-plex',
-})
+const sans = Instrument_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-instrument' })
+const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-plex' })
 
 export const metadata: Metadata = {
-  title: 'PaperHands — paper trade Robinhood Chain memecoins',
+  title: 'PaperHands — honest trading on Robinhood Chain',
   description:
-    'Execution-honest paper trading on live Robinhood Chain liquidity. Prove you can find the winners before you spend real money.',
+    'Practice with a paper bankroll or trade for real from your own wallet — every fill simulated exactly through live Uniswap liquidity, every bag valued at what the pool would actually pay.',
 }
+export const viewport: Viewport = { themeColor: '#ffffff', width: 'device-width', initialScale: 1 }
+
+const NAV = [
+  { href: '/', label: 'Markets' },
+  { href: '/wire', label: 'Wire' },
+  { href: '/portfolio', label: 'Portfolio' },
+  { href: '/leaderboard', label: 'Leaderboard' },
+]
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getOrCreateUser()
   return (
-    <html lang="en" className={plex.variable}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body className="min-h-screen">
-        <header className="border-b-2 border-ink bg-paper/95 sticky top-0 z-20 backdrop-blur-sm">
-          <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-6">
-            <Link href="/" className="flex items-baseline gap-3">
-              <span className="text-lg font-bold tracking-[0.18em]">PAPERHANDS</span>
-              <span className="stamp text-stamp text-[10px]">not real money</span>
-            </Link>
-            <nav className="ml-auto flex items-center gap-5 text-[12px]">
-              <Link href="/" className="hover:underline underline-offset-4">
-                screener
+        <Providers>
+          <Ambient />
+          <header className="above sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-md">
+            <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
+              <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+                <span className="inline-block h-6 w-6 rounded-lg bg-up" aria-hidden="true" />
+                PaperHands
               </Link>
-              <Link href="/wire" className="hover:underline underline-offset-4">
-                the wire
+              <nav className="hidden items-center gap-1 text-[14px] md:flex">
+                {NAV.map((n) => (
+                  <Link key={n.href} href={n.href} className="rounded-lg px-3 py-1.5 text-muted hover:bg-bg-2 hover:text-ink">
+                    {n.label}
+                  </Link>
+                ))}
+              </nav>
+              <div className="ml-auto flex items-center gap-3">
+                <ModeSwitch />
+                <WalletButton bankroll={formatEth(BigInt(user.balance_quote), 3)} />
+              </div>
+            </div>
+          </header>
+          <main className="above mx-auto max-w-6xl px-4 py-8">{children}</main>
+          <nav className="above fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-bg/90 backdrop-blur-md md:hidden">
+            {NAV.map((n) => (
+              <Link key={n.href} href={n.href} className="flex-1 py-3 text-center text-[12px] font-semibold text-muted">
+                {n.label}
               </Link>
-              <Link href="/portfolio" className="hover:underline underline-offset-4">
-                portfolio
-              </Link>
-              <Link href="/leaderboard" className="hover:underline underline-offset-4">
-                leaderboard
-              </Link>
-              <span className="rule-label border-l border-grid pl-5">
-                bankroll{' '}
-                <b className="text-ink text-[12px] normal-case tracking-normal">
-                  {formatEth(BigInt(user.balance_quote))} ETH
-                </b>
-              </span>
-            </nav>
-          </div>
-        </header>
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
-        <footer className="mx-auto max-w-6xl px-4 py-8 rule-label">
-          simulated fills against live robinhood chain liquidity · engine cross-checked wei-for-wei vs
-          on-chain quoter · nothing here is financial advice, or money
-        </footer>
+            ))}
+          </nav>
+          <footer className="above mx-auto max-w-6xl px-4 pb-24 pt-8 text-[12px] text-faint md:pb-10">
+            Fills simulated against live Robinhood Chain liquidity · engine cross-checked wei-for-wei against the on-chain
+            quoters · practice balances are not money · nothing here is financial advice.
+          </footer>
+        </Providers>
       </body>
     </html>
   )

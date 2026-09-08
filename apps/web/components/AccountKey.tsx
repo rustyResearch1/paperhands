@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+/** No signups: the account IS a key. Reveal it to keep it; paste one to restore. */
 export default function AccountKey() {
   const router = useRouter()
   const [key, setKey] = useState<string | null>(null)
@@ -14,7 +15,7 @@ export default function AccountKey() {
     const r = await fetch('/api/account')
     const j = await r.json()
     if (j.key) setKey(j.key)
-    else setMsg(j.error ?? 'could not load key')
+    else setMsg(j.error ?? 'Could not load key')
   }
 
   async function copy() {
@@ -24,7 +25,7 @@ export default function AccountKey() {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      setMsg('copy failed — select and copy manually')
+      setMsg('Copy failed — select and copy manually')
     }
   }
 
@@ -38,46 +39,46 @@ export default function AccountKey() {
     })
     const j = await r.json()
     if (j.ok) {
-      setMsg('account restored')
+      setMsg('Account restored')
       router.refresh()
     } else setMsg(j.error)
   }
 
   return (
-    <div className="slip p-4 mt-6 text-[12px]">
-      <div className="flex items-center justify-between mb-2">
-        <span className="rule-label">account key — your ledger IS this key</span>
-        <span className="stamp text-stamp text-[9px]">keep it</span>
+    <div className="card p-5 text-[13.5px]">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="label">Account key</span>
+        <span className="pill pill-warn">keep it safe</span>
       </div>
-      <p className="text-graphite mb-2">
-        No signups here. Save this key and your ledger survives cleared cookies and moves between devices.
-        Anyone holding it holds the account.
+      <p className="mb-3 text-muted">
+        No signups. Your practice ledger is this key — save it and it survives cleared cookies and moves between devices. Anyone holding it holds
+        the account.
       </p>
       {key ? (
-        <div className="flex gap-2 items-center mb-3">
-          <code className="bg-paper-2 border border-grid px-2 py-1 break-all select-all">{key}</code>
-          <button onClick={copy} className="border-2 border-ink px-3 py-1 font-bold uppercase tracking-wider bg-paper hover:bg-marker/40 shrink-0">
-            {copied ? 'copied' : 'copy'}
+        <div className="mb-3 flex items-center gap-2">
+          <code className="num min-w-0 flex-1 select-all break-all rounded-xl bg-bg-3 px-3 py-2 text-[12px]">{key}</code>
+          <button onClick={copy} className="btn btn-sm btn-ghost shrink-0">
+            {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
       ) : (
-        <button onClick={reveal} className="border-2 border-ink px-3 py-1 font-bold uppercase tracking-wider bg-paper hover:bg-marker/40 mb-3">
-          reveal my key
+        <button onClick={reveal} className="btn btn-sm btn-ghost mb-3">
+          Reveal my key
         </button>
       )}
-      <form onSubmit={doRestore} className="flex gap-2 items-center">
+      <form onSubmit={doRestore} className="flex items-center gap-2">
         <input
           type="text"
           value={restore}
           onChange={(e) => setRestore(e.target.value)}
-          placeholder="paste a key to restore that account here"
-          className="flex-1 border-2 border-ink bg-paper px-2 py-1 focus:outline-2 focus:outline-pen"
+          placeholder="Paste a key to restore that account"
+          className="field field-sm num flex-1 text-[13px] font-normal"
         />
-        <button type="submit" disabled={!restore.trim()} className="border-2 border-ink px-3 py-1 font-bold uppercase tracking-wider bg-pen text-paper disabled:opacity-40 shrink-0">
-          restore
+        <button type="submit" disabled={!restore.trim()} className="btn btn-sm btn-pen shrink-0">
+          Restore
         </button>
       </form>
-      {msg && <p className={`mt-2 ${msg === 'account restored' ? 'text-up' : 'text-down'}`}>{msg}</p>}
+      {msg && <p className={`mt-2 ${msg === 'Account restored' ? 'text-up' : 'text-down'}`}>{msg}</p>}
     </div>
   )
 }

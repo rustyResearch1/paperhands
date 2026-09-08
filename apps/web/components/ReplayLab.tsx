@@ -48,70 +48,59 @@ export default function ReplayLab({ wallet }: { wallet: string }) {
   }
 
   return (
-    <div className="slip p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="rule-label">replay — would tailing them have worked?</span>
-        <span className="stamp text-stamp text-[9px]">time travel</span>
+    <div className="card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <span className="label">Replay</span>
+        <span className="pill">time travel</span>
       </div>
+      <p className="mb-4 text-[13.5px] text-muted">Would tailing this wallet have worked at your size? Their recorded trades, mirrored with your bankroll.</p>
 
-      <div className="grid grid-cols-2 gap-3 text-[12px]">
-        <label className="block">
-          <span className="rule-label">your size per buy (ETH)</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={eth}
-            onChange={(e) => setEth(e.target.value)}
-            className="mt-1 w-full border-2 border-ink bg-paper px-2 py-1 font-semibold focus:outline-2 focus:outline-pen"
-          />
-        </label>
-        <label className="block">
-          <span className="rule-label">lookback</span>
-          <div className="flex gap-1 mt-1">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label mb-1.5 block" htmlFor="rp-eth">
+            Per buy (ETH)
+          </label>
+          <input id="rp-eth" type="text" inputMode="decimal" value={eth} onChange={(e) => setEth(e.target.value)} className="field field-sm num" />
+        </div>
+        <div>
+          <span className="label mb-1.5 block">Lookback</span>
+          <div className="flex gap-1">
             {[6, 24, 72].map((h) => (
-              <button
-                key={h}
-                onClick={() => setHours(h)}
-                className={`border px-2 py-1 ${hours === h ? 'border-ink font-bold bg-marker/30' : 'border-grid'}`}
-              >
+              <button key={h} onClick={() => setHours(h)} className={`chip h-8 flex-1 justify-center px-0 ${hours === h ? 'chip-active' : ''}`}>
                 {h}h
               </button>
             ))}
           </div>
-        </label>
+        </div>
       </div>
 
-      <button
-        onClick={run}
-        disabled={pending || !(Number.parseFloat(eth) > 0)}
-        className="mt-3 w-full border-2 border-ink py-2 text-[12px] font-bold uppercase tracking-[0.14em] bg-pen text-paper shadow-[3px_3px_0_rgba(28,33,39,0.25)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-40"
-      >
-        {pending ? 'replaying their trades at your size…' : 'run the replay'}
+      <button onClick={run} disabled={pending || !(Number.parseFloat(eth) > 0)} className="btn btn-pen mt-4 w-full">
+        {pending ? 'Replaying their trades at your size…' : 'Run the replay'}
       </button>
 
-      {error && <p className="text-down mt-3 text-[12px]">{error}</p>}
+      {error && <p className="mt-3 rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
       {r && (
-        <div className="mt-3 border-t-2 border-dashed border-ink pt-3 text-[12px]">
-          <table className="ledger w-full mb-2">
+        <div className="mt-4 border-t border-line pt-3 text-[13.5px]">
+          <table className="tbl mb-3">
             <thead>
               <tr>
-                <th>token</th>
-                <th>fills</th>
-                <th>in</th>
-                <th>out</th>
-                <th>pnl (ETH)</th>
+                <th>Token</th>
+                <th>Fills</th>
+                <th>In</th>
+                <th>Out</th>
+                <th>PnL</th>
               </tr>
             </thead>
             <tbody>
               {r.pools.map((p) => (
                 <tr key={p.pool}>
-                  <td className="font-bold">{p.baseSymbol}</td>
-                  <td className="text-graphite">
+                  <td className="font-semibold">{p.baseSymbol}</td>
+                  <td className="text-muted">
                     {p.mirroredBuys}b/{p.mirroredSells}s
                   </td>
                   <td>{fmt(p.investedQuote, 3)}</td>
                   <td>{fmt(p.returnedQuote, 3)}</td>
-                  <td className={p.pnlQuote >= 0 ? 'text-up font-bold' : 'text-down font-bold'}>
+                  <td className={p.pnlQuote >= 0 ? 'text-up font-semibold' : 'text-down font-semibold'}>
                     {p.pnlQuote >= 0 ? '+' : ''}
                     {fmt(p.pnlQuote, 3)}
                   </td>
@@ -119,16 +108,11 @@ export default function ReplayLab({ wallet }: { wallet: string }) {
               ))}
             </tbody>
           </table>
-          <p>
-            <span className="hilite font-bold">
-              copying them with {fmt(r.sizeEth, 2)} ETH per buy: {r.totalPnl >= 0 ? '+' : ''}
-              {fmt(r.totalPnl)} ETH on {fmt(r.totalInvested, 2)} deployed
-            </span>
+          <p className={`rounded-xl px-3 py-2 text-[13px] font-semibold ${r.totalPnl >= 0 ? 'bg-up-soft text-up' : 'bg-down-soft text-down'}`}>
+            Copying them at {fmt(r.sizeEth, 2)} ETH per buy: {r.totalPnl >= 0 ? '+' : ''}
+            {fmt(r.totalPnl)} ETH on {fmt(r.totalInvested, 2)} deployed
           </p>
-          <p className="rule-label mt-1">
-            leftover bags exit at the end state — realizable, not marked. your fills pay your own impact,
-            which is exactly why copying whales at retail size often disappoints.
-          </p>
+          <p className="mt-2 text-[12px] text-faint">Leftover bags exit at the end state — realizable, not marked. Your fills pay your own impact.</p>
         </div>
       )}
     </div>

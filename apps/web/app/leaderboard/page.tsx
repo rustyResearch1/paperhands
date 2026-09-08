@@ -1,10 +1,10 @@
+import HandleForm from '@/components/HandleForm'
 import { db } from '@/lib/db'
 import { getOrCreateUser } from '@/lib/session'
-import HandleForm from '@/components/HandleForm'
-
-const fmtEth = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 3 })
 
 export const dynamic = 'force-dynamic'
+
+const fmtEth = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 3 })
 
 interface BoardRow {
   id: string
@@ -13,6 +13,7 @@ interface BoardRow {
   mark_positions: number
   realized: number
   trades: number
+  equity: number
 }
 
 export default async function Leaderboard() {
@@ -25,7 +26,7 @@ export default async function Leaderboard() {
       FROM users u
       WHERE (SELECT COUNT(*) FROM paper_trades WHERE user_id = u.id) > 0`,
     )
-    .all() as Omit<BoardRow, 'mark_positions'>[]
+    .all() as Omit<BoardRow, 'mark_positions' | 'equity'>[]
 
   const posStmt = db.prepare(
     `SELECT po.qty, tb.decimals,
@@ -35,65 +36,64 @@ export default async function Leaderboard() {
      JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
      WHERE po.user_id = ?`,
   )
-  const rows = users
+  const rows: BoardRow[] = users
     .map((u) => {
       const positions = posStmt.all(u.id) as { qty: string; decimals: number; close: number | null }[]
-      const mark_positions = positions.reduce(
-        (acc, p) => acc + (Number(BigInt(p.qty)) / 10 ** p.decimals) * (p.close ?? 0),
-        0,
-      )
+      const mark_positions = positions.reduce((acc, p) => acc + (Number(BigInt(p.qty)) / 10 ** p.decimals) * (p.close ?? 0), 0)
       return { ...u, mark_positions, equity: Number(BigInt(u.balance_quote)) / 1e18 + mark_positions }
     })
     .sort((a, b) => b.equity - a.equity)
     .slice(0, 50)
 
   return (
-    <div>
-      <h1 className="text-sm font-bold uppercase tracking-[0.14em] mb-1">the wall</h1>
-      <p className="rule-label mb-4">
-        ranked by equity (cash + positions at marked prices — the leaderboard flatters; your own ledger does not). start
-        is 10 paper ETH.
-      </p>
-
-      <HandleForm current={me.handle} />
+    <div className="space-y-5">
+      <div className="rise flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-semibold tracking-tight">Leaderboard</h1>
+          <p className="text-muted">Practice equity from a 10 ETH start. Ranked at marked prices — your own portfolio shows the honest number.</p>
+        </div>
+        <HandleForm current={me.handle} />
+      </div>
 
       {rows.length === 0 ? (
-        <div className="slip p-8 max-w-md mx-auto my-12 text-center">
-          <div className="stamp text-stamp mb-3">nobody yet</div>
-          <p className="text-graphite">No one has placed a paper trade. The wall remembers the first.</p>
+        <div className="card mx-auto my-12 max-w-md p-8 text-center">
+          <div className="pill mb-3">nobody yet</div>
+          <p className="text-muted">No one has placed a paper trade. The board remembers the first.</p>
         </div>
       ) : (
-        <table className="ledger w-full max-w-3xl">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>trader</th>
-              <th>equity (ETH)</th>
-              <th>realized pnl</th>
-              <th>trades</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const isMe = r.id === me.id
-              return (
-                <tr key={r.id} className={isMe ? 'bg-marker/20' : ''}>
-                  <td>{i + 1}</td>
-                  <td className="font-bold">
-                    {r.handle ?? `anon-${r.id.slice(0, 6)}`}
-                    {isMe && <span className="rule-label ml-2">(you)</span>}
-                  </td>
-                  <td className={r.equity >= 10 ? 'text-up font-bold' : 'text-down font-bold'}>{fmtEth(r.equity)}</td>
-                  <td className={r.realized >= 0 ? 'text-up' : 'text-down'}>
-                    {r.realized >= 0 ? '+' : ''}
-                    {fmtEth(r.realized)}
-                  </td>
-                  <td className="text-graphite">{r.trades}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className="card rise rise-2 max-w-3xl overflow-hidden">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Trader</th>
+                <th>Equity</th>
+                <th>Realized</th>
+                <th>Trades</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const isMe = r.id === me.id
+                return (
+                  <tr key={r.id} className={isMe ? 'bg-up-soft/40' : ''}>
+                    <td className="text-muted">{i + 1}</td>
+                    <td className="font-semibold">
+                      {r.handle ?? `anon-${r.id.slice(0, 6)}`}
+                      {isMe && <span className="pill pill-up ml-2">you</span>}
+                    </td>
+                    <td className={r.equity >= 10 ? 'text-up font-semibold' : 'text-down font-semibold'}>{fmtEth(r.equity)} ETH</td>
+                    <td className={r.realized >= 0 ? 'text-up' : 'text-down'}>
+                      {r.realized >= 0 ? '+' : ''}
+                      {fmtEth(r.realized)}
+                    </td>
+                    <td className="text-muted">{r.trades}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

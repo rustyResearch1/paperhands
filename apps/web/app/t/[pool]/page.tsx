@@ -4,7 +4,7 @@ import Chart from '@/components/Chart'
 import LpLab from '@/components/LpLab'
 import TradeTicket from '@/components/TradeTicket'
 import { db } from '@/lib/db'
-import { formatEth, formatPrice, formatQty, formatUsd, timeAgo } from '@/lib/format'
+import { formatEth, formatPct, formatPrice, formatQty, formatUsd, timeAgo } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
 import { poolMeta, ticketQuote } from '@/lib/quote'
 import { quoteDepth } from '@/lib/screener'
@@ -39,18 +39,25 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
     fee: number
     swap_count: number
   }
+  const now = Math.floor(Date.now() / 1000)
   const lastClose = (
-    db.prepare('SELECT close FROM candles WHERE pool = ? ORDER BY minute_ts DESC LIMIT 1').get(pool) as
+    db.prepare('SELECT close FROM candles WHERE pool = ? ORDER BY minute_ts DESC LIMIT 1').get(pool) as { close: number } | undefined
+  )?.close
+  const close24h = (
+    db.prepare('SELECT close FROM candles WHERE pool = ? AND minute_ts <= ? ORDER BY minute_ts DESC LIMIT 1').get(pool, now - 86400) as
       | { close: number }
       | undefined
   )?.close
+  const vol24 = (
+    db.prepare('SELECT COALESCE(SUM(vol_quote),0) AS v FROM candles WHERE pool = ? AND minute_ts > ?').get(pool, now - 86400) as { v: number }
+  ).v
+  const change24 = lastClose && close24h ? ((lastClose - close24h) / close24h) * 100 : null
 
   const position = db
     .prepare('SELECT qty, cost_quote, realized_quote FROM positions WHERE user_id = ? AND pool = ?')
     .get(user.id, pool) as { qty: string; cost_quote: string; realized_quote: string } | undefined
   const qty = BigInt(position?.qty ?? '0')
 
-  // The honest number: what the pool would pay to exit this position now.
   let realizable: bigint | null = null
   if (qty > 0n) {
     try {
@@ -60,10 +67,8 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
     }
   }
   const usdRate = ethUsdRate()
-  // Marked value in ETH: USDG-quoted pools price the token in dollars.
   const markQuote = lastClose && qty > 0n ? (Number(qty) / 10 ** meta.baseDecimals) * lastClose : null
-  const mark =
-    markQuote === null ? null : meta.quoteSymbol === 'USDG' ? (usdRate ? markQuote / usdRate : null) : markQuote
+  const mark = markQuote === null ? null : meta.quoteSymbol === 'USDG' ? (usdRate ? markQuote / usdRate : null) : markQuote
   const cost = BigInt(position?.cost_quote ?? '0')
 
   const tape = db
@@ -71,169 +76,169 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
     .all(pool) as SwapRow[]
   const baseIsToken0 = meta.base_is_token0 === 1
   const depth = quoteDepth({ ...poolRow, quoteDecimals: meta.quoteDecimals })
-  // Routing makes every verified venue tradable: hooked pools quote through
-  // the chain's own v4 Quoter, USDG pools trade via a 2-leg ETH↔USDG path.
   const tradable = Boolean(meta.factory_verified)
-  // Replay covers v3 and hookless v4 pools quoted in ETH; hooks rewrite
-  // fills (unsimulable) and USDG-quoted labs await a quote-currency ledger.
   const labReady = !meta.hooked && (meta.quoteSymbol === 'WETH' || meta.quoteSymbol === 'ETH')
 
+  const priceUsd =
+    lastClose === undefined ? null : meta.quoteSymbol === 'USDG' ? lastClose : usdRate ? lastClose * usdRate : null
+  const isV4 = pool.length === 66
+
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-xl font-bold">{meta.baseSymbol}</h1>
-        <span className="text-lg tabular-nums">
-          {formatPrice(lastClose ?? 0)} {meta.quoteSymbol}
-        </span>
-        {lastClose && meta.quoteSymbol === 'USDG' ? (
-          <span className="text-graphite tabular-nums">{formatUsd(lastClose)}</span>
-        ) : usdRate && lastClose ? (
-          <span className="text-graphite tabular-nums">{formatUsd(lastClose * usdRate)}</span>
-        ) : null}
-        <span className="rule-label">
-          {meta.version === 4 ? 'v4 · ' : ''}fee {meta.fee >= 8388608 ? 'dynamic (hook-set)' : `${(meta.fee / 10000).toFixed(2)}%`} · depth{' '}
-          {depth.toLocaleString('en-US', { maximumFractionDigits: 1 })} {meta.quoteSymbol} ·{' '}
-          {poolRow.swap_count.toLocaleString()} swaps tracked
-        </span>
-        {!meta.factory_verified && <span className="stamp text-stamp text-[10px]">unverified pool</span>}
-        {meta.hooked && <span className="stamp text-pen text-[10px]">hook pool</span>}
-        {pool.length === 42 && (
-          <a
-            className="rule-label text-pen hover:underline ml-auto"
-            href={`${EXPLORER_URL}/address/${pool}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            explorer ↗
-          </a>
-        )}
+    <div className="space-y-5">
+      <div className="rise flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-bg-3 text-[15px] font-bold text-muted">
+            {meta.baseSymbol.slice(0, 2).toUpperCase()}
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight">{meta.baseSymbol}</h1>
+              <span className="pill">{isV4 ? 'v4' : 'v3'} · {meta.fee >= 8388608 ? 'dynamic fee' : `${(meta.fee / 10000).toFixed(2)}%`}</span>
+              {meta.hooked && <span className="pill pill-warn">hook pool</span>}
+              {!meta.factory_verified && <span className="pill pill-down">unverified</span>}
+            </div>
+            <div className="mt-1 flex items-baseline gap-3">
+              <span className="num text-[30px] font-semibold leading-none">
+                {priceUsd !== null ? formatUsd(priceUsd) : '—'}
+              </span>
+              {change24 !== null && (
+                <span className={`num text-[15px] font-semibold ${change24 >= 0 ? 'text-up' : 'text-down'}`}>{formatPct(change24)} 24h</span>
+              )}
+              <span className="num text-[13px] text-muted">
+                {formatPrice(lastClose ?? 0)} {meta.quoteSymbol}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+          <span className="pill">depth {depth.toLocaleString('en-US', { maximumFractionDigits: 1 })} {meta.quoteSymbol}</span>
+          <span className="pill">vol 24h {vol24.toLocaleString('en-US', { maximumFractionDigits: 1 })} {meta.quoteSymbol}</span>
+          <span className="pill">{poolRow.swap_count.toLocaleString()} swaps</span>
+          {!isV4 && (
+            <a className="pill pill-pen" href={`${EXPLORER_URL}/address/${pool}`} target="_blank" rel="noreferrer">
+              explorer ↗
+            </a>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-5">
-          <div className="slip p-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <div className="card rise rise-2 p-2">
             <Chart pool={pool} />
           </div>
 
           {qty > 0n && (
-            <div className="slip p-4">
-              <div className="rule-label mb-2">your position</div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[12px]">
-                <Cell label="holding" value={`${formatQty(qty, meta.baseDecimals)} ${meta.baseSymbol}`} />
-                <Cell label="cost basis" value={`${formatEth(cost)} ETH`} />
+            <div className="card rise rise-2 p-5">
+              <div className="label mb-3">Your position</div>
+              <div className="grid grid-cols-2 gap-4 text-[13.5px] sm:grid-cols-4">
+                <Cell label="Holding" value={`${formatQty(qty, meta.baseDecimals)} ${meta.baseSymbol}`} />
+                <Cell label="Cost basis" value={`${formatEth(cost)} ETH`} />
+                <Cell label="Marked value" value={mark !== null ? `${mark.toLocaleString('en-US', { maximumFractionDigits: 4 })} ETH` : '—'} strike />
                 <Cell
-                  label="marked value"
-                  value={mark !== null ? `${mark.toLocaleString('en-US', { maximumFractionDigits: 4 })} ETH` : '—'}
-                  strike
-                />
-                <Cell
-                  label="pool would pay"
+                  label="Pool would pay"
                   value={realizable !== null ? `${formatEth(realizable)} ETH` : '—'}
-                  hilite
                   tone={realizable !== null && realizable >= cost ? 'up' : 'down'}
+                  hero
                 />
               </div>
             </div>
           )}
 
-          <div className="slip p-4">
-            <div className="rule-label mb-2">the tape — live swaps in this pool</div>
-            <table className="ledger w-full">
-              <thead>
-                <tr>
-                  <th>side</th>
-                  <th>size ({meta.quoteSymbol})</th>
-                  <th>trader</th>
-                  <th>when</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tape.map((s) => {
-                  const ethAmt = BigInt(baseIsToken0 ? s.amount1 : s.amount0)
-                  const isBuy = ethAmt > 0n // ETH flowed into the pool
-                  const abs = ethAmt < 0n ? -ethAmt : ethAmt
-                  return (
-                    <tr key={`${s.tx_hash}:${s.log_index}`}>
-                      <td className={isBuy ? 'text-up' : 'text-down'}>{isBuy ? 'buy' : 'sell'}</td>
-                      <td>{formatQty(abs, meta.quoteDecimals)}</td>
-                      <td className="text-graphite">
-                        {s.trader && s.trader !== '0x' ? (
-                          <Link className="hover:text-pen hover:underline underline-offset-4" href={`/w/${s.trader}`}>
-                            {s.trader.slice(0, 6)}…{s.trader.slice(-4)}
-                          </Link>
-                        ) : (
-                          '…'
-                        )}
-                      </td>
-                      <td className="text-graphite">{timeAgo(s.ts)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="card rise rise-3 overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-4">
+              <span className="label">Live tape</span>
+              <span className="text-[12px] text-faint">latest 25 swaps in this pool</span>
+            </div>
+            <div className="overflow-x-auto px-2 pb-2 pt-2">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Side</th>
+                    <th>Size ({meta.quoteSymbol})</th>
+                    <th>Trader</th>
+                    <th>When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tape.map((s) => {
+                    const ethAmt = BigInt(baseIsToken0 ? s.amount1 : s.amount0)
+                    const isBuy = ethAmt > 0n
+                    const abs = ethAmt < 0n ? -ethAmt : ethAmt
+                    return (
+                      <tr key={`${s.tx_hash}:${s.log_index}`}>
+                        <td>
+                          <span className={`pill ${isBuy ? 'pill-up' : 'pill-down'}`}>{isBuy ? 'buy' : 'sell'}</span>
+                        </td>
+                        <td>{formatQty(abs, meta.quoteDecimals)}</td>
+                        <td className="text-muted">
+                          {s.trader && s.trader !== '0x' ? (
+                            <Link className="hover:text-pen" href={`/w/${s.trader}`}>
+                              {s.trader.slice(0, 6)}…{s.trader.slice(-4)}
+                            </Link>
+                          ) : (
+                            '…'
+                          )}
+                        </td>
+                        <td className="text-muted">{timeAgo(s.ts)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {tradable ? (
             <>
-              <TradeTicket
-                pool={pool}
-                baseSymbol={meta.baseSymbol}
-                baseDecimals={meta.baseDecimals}
-                balanceWei={user.balance_quote}
-                positionQty={position?.qty ?? '0'}
-              />
-              {labReady ? (
-                <LpLab pool={pool} />
-              ) : (
-                <p className="rule-label">
-                  lp lab: replay for {meta.version === 4 ? 'v4' : 'hooked / USDG'} pools is coming — trading routes
-                  through them already.
-                </p>
-              )}
+              <div className="rise rise-2">
+                <TradeTicket
+                  pool={pool}
+                  baseSymbol={meta.baseSymbol}
+                  baseDecimals={meta.baseDecimals}
+                  balanceWei={user.balance_quote}
+                  positionQty={position?.qty ?? '0'}
+                />
+              </div>
+              <div className="rise rise-3">
+                {labReady ? (
+                  <LpLab pool={pool} />
+                ) : (
+                  <p className="text-[12px] text-faint">
+                    LP backtests for {meta.hooked ? 'hook' : 'USDG-quoted'} pools are coming — trading routes through them already.
+                  </p>
+                )}
+              </div>
             </>
           ) : (
-            <div className="slip p-4">
-              <div className="stamp text-stamp text-[10px] mb-2">view only</div>
-              <p className="text-[12px] text-graphite">
-                This pool is not verified against the Uniswap factory — treat as hostile. Charts and the tape stay live.
+            <div className="card p-5">
+              <span className="pill pill-down mb-2">view only</span>
+              <p className="text-[13.5px] text-muted">
+                This pool isn&rsquo;t verified against the Uniswap factory — treat as hostile. Charts and the tape stay live.
               </p>
             </div>
           )}
-          <p className="rule-label">
-            <Link href="/" className="text-pen hover:underline">
-              ← back to the book
-            </Link>
-          </p>
+          <Link href="/" className="block text-[13px] text-pen hover:underline">
+            ← Markets
+          </Link>
         </div>
       </div>
     </div>
   )
 }
 
-function Cell({
-  label,
-  value,
-  strike,
-  hilite,
-  tone,
-}: {
-  label: string
-  value: string
-  strike?: boolean
-  hilite?: boolean
-  tone?: 'up' | 'down'
-}) {
+function Cell({ label, value, strike, hero, tone }: { label: string; value: string; strike?: boolean; hero?: boolean; tone?: 'up' | 'down' }) {
   return (
     <div>
-      <div className="rule-label">{label}</div>
+      <div className="label">{label}</div>
       <div
-        className={`font-bold tabular-nums ${strike ? 'line-through decoration-stamp/70 text-graphite' : ''} ${
+        className={`num mt-1 font-semibold ${hero ? 'text-[18px]' : ''} ${strike ? 'text-muted line-through decoration-down/60' : ''} ${
           tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : ''
         }`}
       >
-        {hilite ? <span className="hilite">{value}</span> : value}
+        {hero ? <span className="hilite">{value}</span> : value}
       </div>
     </div>
   )

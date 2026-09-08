@@ -26,57 +26,65 @@ export default async function WalletPage({ params }: { params: Promise<{ address
 
   const ethIn = pools.reduce((a, p) => a + p.ethIn, 0)
   const ethOut = pools.reduce((a, p) => a + p.ethOut, 0)
-  const openMark = pools.reduce(
-    (a, p) => a + (p.netBaseRaw > 0 && p.close ? (p.netBaseRaw / 10 ** p.decimals) * p.close : 0),
-    0,
-  )
+  const openMark = pools.reduce((a, p) => a + (p.netBaseRaw > 0 && p.close ? (p.netBaseRaw / 10 ** p.decimals) * p.close : 0), 0)
+  const flow = ethOut - ethIn
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-lg font-bold tabular-nums">
-          {address.slice(0, 10)}…{address.slice(-8)}
-        </h1>
-        <a className="rule-label text-pen hover:underline" href={`${EXPLORER_URL}/address/${address}`} target="_blank" rel="noreferrer">
-          explorer ↗
-        </a>
-        <Link href="/wire" className="rule-label text-pen hover:underline ml-auto">
-          ← the wire
+    <div className="space-y-5">
+      <div className="rise flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-bg-3 text-[13px] font-bold text-muted">0x</span>
+          <div>
+            <h1 className="num text-[20px] font-semibold tracking-tight">
+              {address.slice(0, 10)}…{address.slice(-8)}
+            </h1>
+            <div className="mt-1 flex items-center gap-2 text-[13px]">
+              <a className="pill pill-pen" href={`${EXPLORER_URL}/address/${address}`} target="_blank" rel="noreferrer">
+                explorer ↗
+              </a>
+              {tail?.active ? <span className="pill pill-up">tailing</span> : null}
+            </div>
+          </div>
+        </div>
+        <Link href="/wire" className="text-[13px] text-pen hover:underline">
+          ← Wire
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-5">
-          <div className="slip p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[13px]">
-            <Stat label="eth in" value={fmt(ethIn)} />
-            <Stat label="eth out" value={fmt(ethOut)} />
-            <Stat label="net flow" value={`${ethOut - ethIn >= 0 ? '+' : ''}${fmt(ethOut - ethIn)}`} tone={ethOut - ethIn >= 0 ? 'up' : 'down'} />
-            <Stat label="open bags (marked)" value={fmt(openMark)} />
-          </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kpi label="ETH in" value={fmt(ethIn)} />
+        <Kpi label="ETH out" value={fmt(ethOut)} />
+        <Kpi label="Net flow" value={`${flow >= 0 ? '+' : ''}${fmt(flow)}`} tone={flow >= 0 ? 'up' : 'down'} />
+        <Kpi label="Open bags · marked" value={fmt(openMark)} />
+      </div>
 
-          <div className="slip p-4">
-            <div className="rule-label mb-2">by pool — tracked window</div>
-            <div className="overflow-x-auto">
-              <table className="ledger w-full">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <div className="card rise rise-2 overflow-hidden">
+            <div className="px-5 pt-4">
+              <span className="label">By pool · tracked window</span>
+            </div>
+            <div className="overflow-x-auto px-2 pb-2 pt-2">
+              <table className="tbl">
                 <thead>
                   <tr>
-                    <th>token</th>
-                    <th>buys</th>
-                    <th>sells</th>
-                    <th>eth in</th>
-                    <th>eth out</th>
-                    <th>flow</th>
-                    <th>still holding (marked)</th>
+                    <th>Token</th>
+                    <th>Buys</th>
+                    <th>Sells</th>
+                    <th>ETH in</th>
+                    <th>ETH out</th>
+                    <th>Flow</th>
+                    <th>Still holding</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pools.map((p) => {
-                    const flow = p.ethOut - p.ethIn
+                    const f = p.ethOut - p.ethIn
                     const holding = p.netBaseRaw > 0 && p.close ? (p.netBaseRaw / 10 ** p.decimals) * p.close : 0
                     return (
                       <tr key={p.pool}>
                         <td>
-                          <Link href={`/t/${p.pool}`} className="font-bold hover:underline underline-offset-4">
+                          <Link href={`/t/${p.pool}`} className="font-semibold hover:text-pen">
                             {p.symbol}
                           </Link>
                         </td>
@@ -84,11 +92,11 @@ export default async function WalletPage({ params }: { params: Promise<{ address
                         <td className="text-down">{p.sells}</td>
                         <td>{fmt(p.ethIn)}</td>
                         <td>{fmt(p.ethOut)}</td>
-                        <td className={flow >= 0 ? 'text-up font-bold' : 'text-down font-bold'}>
-                          {flow >= 0 ? '+' : ''}
-                          {fmt(flow)}
+                        <td className={f >= 0 ? 'text-up font-semibold' : 'text-down font-semibold'}>
+                          {f >= 0 ? '+' : ''}
+                          {fmt(f)}
                         </td>
-                        <td className="text-graphite">{holding > 0 ? fmt(holding) : '—'}</td>
+                        <td className="text-muted">{holding > 0 ? fmt(holding) : '—'}</td>
                       </tr>
                     )
                   })}
@@ -97,46 +105,51 @@ export default async function WalletPage({ params }: { params: Promise<{ address
             </div>
           </div>
 
-          <div className="slip p-4">
-            <div className="rule-label mb-2">recent swaps</div>
-            <table className="ledger w-full">
-              <thead>
-                <tr>
-                  <th>side</th>
-                  <th>token</th>
-                  <th>size (ETH)</th>
-                  <th>when</th>
-                </tr>
-              </thead>
-              <tbody>
-                {swaps.map((s, i) => (
-                  <tr key={s.tx_hash + i}>
-                    <td className={s.eth > 0 ? 'text-up' : 'text-down'}>{s.eth > 0 ? 'buy' : 'sell'}</td>
-                    <td>
-                      <Link href={`/t/${s.pool}`} className="hover:underline underline-offset-4">
-                        {s.symbol}
-                      </Link>
-                    </td>
-                    <td>{fmt(Math.abs(s.eth), 4)}</td>
-                    <td className="text-graphite">{timeAgo(s.ts)}</td>
+          <div className="card rise rise-3 overflow-hidden">
+            <div className="px-5 pt-4">
+              <span className="label">Recent swaps</span>
+            </div>
+            <div className="overflow-x-auto px-2 pb-2 pt-2">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Side</th>
+                    <th>Token</th>
+                    <th>Size (ETH)</th>
+                    <th>When</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {swaps.map((s, i) => (
+                    <tr key={s.tx_hash + i}>
+                      <td>
+                        <span className={`pill ${s.eth > 0 ? 'pill-up' : 'pill-down'}`}>{s.eth > 0 ? 'buy' : 'sell'}</span>
+                      </td>
+                      <td>
+                        <Link href={`/t/${s.pool}`} className="hover:text-pen">
+                          {s.symbol}
+                        </Link>
+                      </td>
+                      <td>{fmt(Math.abs(s.eth), 4)}</td>
+                      <td className="text-muted">{timeAgo(s.ts)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <TailForm
-            wallet={address}
-            activeSize={tail?.active ? tail.size_quote : null}
-          />
-          <ReplayLab wallet={address} />
-          <p className="rule-label">
-            tailing mirrors this wallet with YOUR size through the same honest engine: their buy triggers
-            your fixed-size buy; their sell in a pool exits your whole tailed position. fills land as the
-            indexer sees their swaps — you eat your own slippage, not theirs. run the replay first to see
-            whether copying them ever paid.
+        <div className="space-y-5">
+          <div className="rise rise-2">
+            <ReplayLab wallet={address} />
+          </div>
+          <div className="rise rise-3">
+            <TailForm wallet={address} activeSize={tail?.active ? tail.size_quote : null} />
+          </div>
+          <p className="text-[12px] text-faint">
+            Tailing mirrors this wallet with your size: their buy triggers your fixed-size buy; their sell exits your tailed position. You eat
+            your own slippage, not theirs — run the replay first.
           </p>
         </div>
       </div>
@@ -144,13 +157,11 @@ export default async function WalletPage({ params }: { params: Promise<{ address
   )
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: 'up' | 'down' }) {
+function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'up' | 'down' }) {
   return (
-    <div>
-      <div className="rule-label">{label}</div>
-      <div className={`font-bold text-base tabular-nums ${tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : ''}`}>
-        {value}
-      </div>
+    <div className="card-flat p-4">
+      <div className="label">{label}</div>
+      <div className={`num mt-1 text-[18px] font-semibold ${tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : ''}`}>{value}</div>
     </div>
   )
 }
