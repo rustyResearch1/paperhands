@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { limitHeaders, rateLimit } from '@/lib/ratelimit'
-import { bestFill } from '@/lib/route'
+import { bestFill, walletSignable } from '@/lib/route'
 
 export const maxDuration = 30
 
@@ -43,10 +43,15 @@ export async function GET(req: NextRequest) {
         instantExit: r.instantExit?.toString() ?? null,
         markInflation: r.markInflation ?? null,
         exact: r.exact,
+        /** One wallet transaction can sign this route: hookless v3 (SwapRouter02) or all-v4 (Universal Router). */
+        executable: walletSignable(r.legs),
+        signer: r.legs.every((l) => l.venue.version === 4) ? 'universalRouter' : r.legs.every((l) => l.venue.version === 3 && !l.venue.hooked) ? 'swapRouter02' : null,
         legs: r.legs.map((l) => ({
           pool: l.venue.pool,
           version: l.venue.version,
           fee: l.venue.fee,
+          tickSpacing: l.venue.tickSpacing,
+          hooks: l.venue.hooks,
           hooked: l.venue.hooked,
           tokenIn: l.side === 'buy' ? l.venue.quoteAddress : l.venue.baseAddress,
           tokenOut: l.side === 'buy' ? l.venue.baseAddress : l.venue.quoteAddress,
