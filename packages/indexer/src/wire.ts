@@ -1,6 +1,9 @@
 import type Database from 'better-sqlite3'
 import { setMeta } from './db.js'
-import { traderPnlSummary, traderTokenPnl } from './pnl.js'
+import { replayTrader, traderPnlSummary, type TradeClose } from './pnl.js'
+
+export const CLOSED_META_KEY = 'closed_json'
+export const CLOSED_TS_KEY = 'closed_ts'
 
 /**
  * The Wire ranking — wallets by ETH actually taken out of pools — plus each
@@ -91,15 +94,31 @@ export function computeWireRank(db: Database.Database, limit = WIRE_RANK_ROWS, m
     if (Number.isFinite(v) && v < 1e6) open.set(m.trader, (open.get(m.trader) ?? 0) + v)
   }
   return rows.map((r) => {
-    const s = traderPnlSummary(traderTokenPnl(db, r.trader))
+    const s = traderPnlSummary(replayTrader(db, r.trader).tokens)
     return { ...r, openMarkEth: open.get(r.trader) ?? 0, realizedEth: s.realized, winRate: s.winRate, wins: s.wins, losses: s.losses, bestSymbol: s.bestSymbol, worstSymbol: s.worstSymbol }
   })
+}
+
+/** The ranked wallets' most recent closed trades (sells with realized P&L), newest first. */
+export function computeClosedTrades(db: Database.Database, traders: string[], limit = 400): TradeClose[] {
+  const all: TradeClose[] = []
+  // Only closes whose cost we actually saw — a sell of a bag bought before the ledger began has no honest P&L.
+  for (const t of traders) all.push(...replayTrader(db, t).closes.filter((c) => c.costOut > 0))
+  all.sort((a, b) => b.ts - a.ts)
+  return all.slice(0, limit)
 }
 
 /** Recompute and swap the table in one transaction; returns rows written. */
 export function refreshWireRank(db: Database.Database): number {
   ensureWireRank(db)
   const rows = computeWireRank(db)
+  try {
+    const closes = computeClosedTrades(db, rows.map((r) => r.trader))
+    setMeta(db, CLOSED_META_KEY, JSON.stringify(closes))
+    setMeta(db, CLOSED_TS_KEY, String(Math.floor(Date.now() / 1000)))
+  } catch (err) {
+    console.error('closed trades refresh failed:', (err as Error).message)
+  }
   const insert = db.prepare(`INSERT INTO wire_rank (${COLUMNS.join(', ')}) VALUES (${COLUMNS.map(() => '?').join(', ')})`)
   db.transaction(() => {
     db.exec('DELETE FROM wire_rank')

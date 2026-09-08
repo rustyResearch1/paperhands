@@ -51,10 +51,11 @@ export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEt
   return sortAndTrim(rows, limit, sort, minDepthEth)
 }
 
-function storedSnapshot(): ScreenerRow[] | null {
+/** The watcher's stored screener snapshot, if it is younger than `maxAgeS`. */
+export function storedSnapshot(maxAgeS = SNAPSHOT_FRESH_S): ScreenerRow[] | null {
   try {
     const ts = Number((db.prepare(`SELECT value FROM meta WHERE key = ?`).get(SCREENER_TS_KEY) as { value: string } | undefined)?.value ?? 0)
-    if (!ts || Math.floor(Date.now() / 1000) - ts > SNAPSHOT_FRESH_S) return null
+    if (!ts || Math.floor(Date.now() / 1000) - ts > maxAgeS) return null
     const json = (db.prepare(`SELECT value FROM meta WHERE key = ?`).get(SCREENER_META_KEY) as { value: string } | undefined)?.value
     return json ? (JSON.parse(json) as ScreenerRow[]) : null
   } catch {

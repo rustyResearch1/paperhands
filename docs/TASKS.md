@@ -103,6 +103,20 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [ ] Bridge tab via deBridge DLN (supports Robinhood 4663, Solana, BSC; keyless quote + tx build); cross-chain trending list
 - [ ] Learn section (live-data lessons + paper challenges)
 
+## Stage M — The Tape (bsctrenches.com as the bar: one live, dense, read-only page a trencher opens first)
+- [x] `/tape`: every fill on Robinhood Chain as it lands in the ledger, sized in USD, newest first, 4s polling with `since=<block>`
+      deltas; tracked (the 200 ranked wallets, rank badges) / everyone; buys / sells; ≥ $100 / $1k / $10k; sound on new fills
+- [x] Header stats: tape lag vs the chain, fills/min + 24h count + 5m buys/sells, 24h traded (screener snapshot), biggest buy and
+      sell of the hour with wallet, tracked-wallet count
+- [x] Fresh pools rail: newest discovered token pools with version/hook, age, swap count, quote depth
+- [x] Closed trades rail: the ranked wallets' sells with realized P&L (pro-rata cost basis), hold time, tx — only closes whose cost
+      the ledger actually saw; refreshed with the Wire ranking (`meta.closed_json`, `computeClosedTrades`)
+- [x] Ledger indexes for it: `swaps(block)`, `swaps(trader, block)` (replaces the trader-only index), `pools(discovered_block)` —
+      built after migrate, tolerant of the other process holding the lock at boot; tape queries fall back when they don't exist yet
+- [x] Watcher ticks every 2.5s on a dedicated RPC (6s public) so the tape is seconds behind the chain once `PAPERHANDS_RPC` is set
+- [ ] WebSocket push instead of polling (needs the dedicated RPC's WS for the watcher first); "who followed who" (wallets that bought
+      the same token within N minutes of a ranked wallet); token market cap on fills (needs total supply per token)
+
 ## User-side (needs your accounts / wallet)
 - [ ] Set `PAPERHANDS_RPC` on Railway to a dedicated Alchemy/QuickNode Robinhood Chain endpoint — production still runs on the
       public RPC (rate limits + ~3k blocks of pinned state)

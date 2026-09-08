@@ -16,7 +16,45 @@ export function openDb(path = process.env.PAPERHANDS_DB ?? defaultDbPath()): Dat
   db.pragma('journal_mode = WAL')
   db.pragma('synchronous = NORMAL')
   migrate(db)
+  ensureLateIndexes(db)
   return db
+}
+
+/**
+ * Indexes added after the ledger grew large. Building one over tens of
+ * millions of rows takes a minute and holds the write lock; the web and the
+ * watcher open the same file at boot, so whichever loses the race must not
+ * die on SQLITE_BUSY — the other process is building it, and the queries
+ * that want it merely run slower until it exists.
+ */
+function ensureLateIndexes(db: Database.Database) {
+  const wanted = [
+    // the live tape: "everything since block N", newest first
+    'CREATE INDEX IF NOT EXISTS swaps_block ON swaps(block)',
+    // a wallet's (or the tracked set's) fills since block N — supersedes the trader-only index
+    'CREATE INDEX IF NOT EXISTS swaps_trader_block ON swaps(trader, block) WHERE trader IS NOT NULL',
+    // fresh pools: newest discoveries first
+    'CREATE INDEX IF NOT EXISTS pools_discovered ON pools(discovered_block)',
+  ]
+  const busy = (err: unknown) => /SQLITE_BUSY|database is locked/i.test((err as Error).message)
+  for (const ddl of wanted) {
+    try {
+      db.exec(ddl)
+    } catch (err) {
+      if (!busy(err)) throw err
+      console.warn(`late index deferred (another process holds the lock): ${ddl}`)
+    }
+  }
+  // Once the composite exists, the old trader-only index is dead weight.
+  try {
+    if (hasIndex(db, 'swaps_trader_block')) db.exec('DROP INDEX IF EXISTS swaps_trader')
+  } catch (err) {
+    if (!busy(err)) throw err
+  }
+}
+
+export function hasIndex(db: Database.Database, name: string): boolean {
+  return Boolean(db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?`).get(name))
 }
 
 function migrate(db: Database.Database) {
@@ -63,7 +101,6 @@ function migrate(db: Database.Database) {
       PRIMARY KEY (tx_hash, log_index)
     );
     CREATE INDEX IF NOT EXISTS swaps_pool_block ON swaps(pool, block);
-    CREATE INDEX IF NOT EXISTS swaps_trader ON swaps(trader) WHERE trader IS NOT NULL;
 
     -- price = human-unit quote (WETH) per base token
     CREATE TABLE IF NOT EXISTS candles (

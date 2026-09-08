@@ -5,6 +5,7 @@ import type Database from 'better-sqlite3'
  * basis. Realized = ETH banked on sells minus the cost of what was sold;
  * the open bag keeps the rest of the cost. Only ETH-quoted, factory-verified
  * pools count; stablecoin and WETH legs are excluded as cash, not bets.
+ * Every sell also yields a "close" record — the trade-by-trade feed.
  */
 export interface TraderTokenPnl {
   token: string
@@ -25,9 +26,28 @@ export interface TraderTokenPnl {
   untracked: boolean
 }
 
+export interface TradeClose {
+  ts: number
+  trader: string
+  token: string
+  pool: string
+  symbol: string
+  decimals: number
+  tx: string
+  qtyRaw: string
+  ethOut: number
+  costOut: number
+  realized: number
+  /** Seconds between the position's first buy and this sell. */
+  heldSec: number
+  /** Cost basis was unknown for (part of) this sell. */
+  untracked: boolean
+}
+
 interface Row {
   pool: string
   ts: number
+  tx_hash: string
   amount0: string
   amount1: string
   base_is_token0: number
@@ -38,10 +58,11 @@ interface Row {
 
 const CASH = new Set(['USDG', 'USDE', 'WETH', 'USDC', 'USDT'])
 
-export function traderTokenPnl(db: Database.Database, trader: string): TraderTokenPnl[] {
+export function replayTrader(db: Database.Database, trader: string): { tokens: TraderTokenPnl[]; closes: TradeClose[] } {
+  const t = trader.toLowerCase()
   const rows = db
     .prepare(
-      `SELECT s.pool, s.ts, s.amount0, s.amount1, p.base_is_token0,
+      `SELECT s.pool, s.ts, s.tx_hash, s.amount0, s.amount1, p.base_is_token0,
               tb.symbol AS symbol, tb.decimals AS decimals, tb.address AS baseAddr
        FROM swaps s
        JOIN pools p ON p.address = s.pool
@@ -49,41 +70,52 @@ export function traderTokenPnl(db: Database.Database, trader: string): TraderTok
        WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
        ORDER BY s.block ASC, s.log_index ASC`,
     )
-    .all(trader.toLowerCase()) as Row[]
-  const by = new Map<string, TraderTokenPnl & { qty: number }>()
+    .all(t) as Row[]
+  const by = new Map<string, TraderTokenPnl & { qty: number; openedTs: number }>()
+  const closes: TradeClose[] = []
   for (const r of rows) {
     if (CASH.has(r.symbol.toUpperCase())) continue
     const eth = Number(r.base_is_token0 === 1 ? r.amount1 : r.amount0) / 1e18
     const base = Number(r.base_is_token0 === 1 ? r.amount0 : r.amount1)
-    let t = by.get(r.baseAddr)
-    if (!t) {
-      t = { token: r.baseAddr, pool: r.pool, symbol: r.symbol, decimals: r.decimals, buys: 0, sells: 0, ethIn: 0, ethOut: 0, realized: 0, openQtyRaw: '0', openCost: 0, firstTs: r.ts, lastTs: r.ts, untracked: false, qty: 0 }
-      by.set(r.baseAddr, t)
+    let p = by.get(r.baseAddr)
+    if (!p) {
+      p = { token: r.baseAddr, pool: r.pool, symbol: r.symbol, decimals: r.decimals, buys: 0, sells: 0, ethIn: 0, ethOut: 0, realized: 0, openQtyRaw: '0', openCost: 0, firstTs: r.ts, lastTs: r.ts, untracked: false, qty: 0, openedTs: r.ts }
+      by.set(r.baseAddr, p)
     }
-    t.firstTs = Math.min(t.firstTs, r.ts)
-    t.lastTs = Math.max(t.lastTs, r.ts)
+    p.firstTs = Math.min(p.firstTs, r.ts)
+    p.lastTs = Math.max(p.lastTs, r.ts)
     if (eth > 0) {
-      t.buys++
-      t.ethIn += eth
-      t.qty += -base
-      t.openCost += eth
+      if (p.qty <= 0) p.openedTs = r.ts
+      p.buys++
+      p.ethIn += eth
+      p.qty += -base
+      p.openCost += eth
     } else if (eth < 0) {
-      t.sells++
+      p.sells++
       const out = -eth
-      t.ethOut += out
-      if (t.qty <= 0) {
-        t.realized += out
-        t.untracked = true
+      p.ethOut += out
+      let costOut = 0
+      let untracked = false
+      if (p.qty <= 0) {
+        untracked = true
+        p.untracked = true
       } else {
-        const portion = Math.min(1, base / t.qty)
-        const costOut = t.openCost * portion
-        t.realized += out - costOut
-        t.openCost -= costOut
-        t.qty = Math.max(0, t.qty - base)
+        const portion = Math.min(1, base / p.qty)
+        costOut = p.openCost * portion
+        p.openCost -= costOut
+        p.qty = Math.max(0, p.qty - base)
+        if (base > p.qty + base + 1) untracked = true
       }
+      p.realized += out - costOut
+      closes.push({ ts: r.ts, trader: t, token: r.baseAddr, pool: r.pool, symbol: r.symbol, decimals: r.decimals, tx: r.tx_hash, qtyRaw: BigInt(Math.floor(base)).toString(), ethOut: out, costOut, realized: out - costOut, heldSec: Math.max(0, r.ts - p.openedTs), untracked })
     }
   }
-  return [...by.values()].map(({ qty, ...t }) => ({ ...t, openQtyRaw: BigInt(Math.floor(Math.max(0, qty))).toString() }))
+  const tokens = [...by.values()].map(({ qty, openedTs, ...p }) => ({ ...p, openQtyRaw: BigInt(Math.floor(Math.max(0, qty))).toString() }))
+  return { tokens, closes }
+}
+
+export function traderTokenPnl(db: Database.Database, trader: string): TraderTokenPnl[] {
+  return replayTrader(db, trader).tokens
 }
 
 export interface TraderPnlSummary {

@@ -369,6 +369,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
       if (chunk > 500n) chunk /= 2n
       console.error(`watch: tick failed (chunk→${chunk}), retrying —`, (err as Error).message.split('\n')[0])
     }
-    await new Promise((r) => setTimeout(r, opts.pollMs ?? 6000))
+    // A dedicated RPC turns the watcher into a live tape: a few blocks per tick, every few seconds.
+    await new Promise((r) => setTimeout(r, opts.pollMs ?? (hasDedicatedRpc() ? 2500 : 6000)))
   }
 }
