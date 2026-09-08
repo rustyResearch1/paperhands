@@ -114,20 +114,40 @@ export async function reconstructAt(
   // The snapshot must be pinned to the cursor so liq_events coverage aligns,
   // and full nodes only serve recent state — a lagging watch loop breaks both.
   const head = Number(await client.getBlockNumber())
-  // The RPC serves recent-but-not-archival state; ~1h of blocks is well within
-  // what it honors, and a busy watcher legitimately runs a few thousand blocks
-  // behind head. Only refuse when the gap means truly pruned state.
-  if (head - cursor > 50_000) {
+  // Measured: the public RPC serves pinned state for only a few thousand
+  // recent blocks (~minutes at 14 blocks/s); older pins fail with
+  // "metadata is not found". A healthy watcher runs well inside that.
+  if (head - cursor > 3_000) {
     throw new Error(
       `indexer cursor lags the chain head by ${head - cursor} blocks — start the watch loop and let it catch up`,
     )
   }
-  const snap = await readPoolState(client, db, poolKey, { wordRadius: 12, atBlock: BigInt(cursor) })
+  // The RPC is load-balanced and a state replica can trail the log stream by
+  // a few blocks ("metadata is not found"); fall back to a slightly older pin
+  // and bound the reverse-apply to the block actually snapshotted.
+  let pinned = cursor
+  let snap: Awaited<ReturnType<typeof readPoolState>> | undefined
+  for (const back of [0, 64, 512]) {
+    pinned = cursor - back
+    if (pinned < atBlock) break
+    try {
+      snap = await readPoolState(client, db, poolKey, { wordRadius: 12, atBlock: BigInt(pinned) })
+      break
+    } catch (err) {
+      if (back === 512 || !/metadata is not found|invalid parameters|missing trie node/i.test((err as Error).message)) throw err
+    }
+  }
+  if (!snap) throw new Error(`cannot snapshot ${poolKey} near block ${cursor} — asked for ${atBlock}`)
   const state: V3PoolState = {
     ...snap.state,
     ticks: snap.state.ticks.map((t) => ({ ...t })),
   }
   if (snap.state.tickWindow) state.tickWindow = { ...snap.state.tickWindow }
+  // v4 charges a per-direction protocol fee on top of the LP fee; the replay
+  // loop re-applies the right one before each simulated swap.
+  if (snap.feeZeroForOne !== undefined && snap.feeOneForZero !== undefined) {
+    directionFees.set(state, { zeroForOne: snap.feeZeroForOne, oneForZero: snap.feeOneForZero })
+  }
 
   // Reverse every liquidity delta that happened after atBlock (order-free:
   // additive). Bounds outside the snapshot window are skipped — the window
@@ -140,7 +160,7 @@ export async function reconstructAt(
     .prepare(
       'SELECT block, log_index, kind, tick_lower, tick_upper, amount FROM liq_events WHERE pool = ? AND block > ? AND block <= ?',
     )
-    .all(poolKey, atBlock, cursor) as LiqRow[]
+    .all(poolKey, atBlock, pinned) as LiqRow[]
   for (const e of later) {
     const delta = BigInt(e.kind) * BigInt(e.amount)
     if (!win || (e.tick_lower >= win.min && e.tick_lower <= win.max)) upsertTickNet(state.ticks, e.tick_lower, -delta)
@@ -179,6 +199,15 @@ export async function reconstructAt(
   if (L < 0n) throw new Error('replay: reconstructed liquidity negative — missing liq events?')
   state.liquidity = L
   return state
+}
+
+/** v4 per-direction effective fees, attached to a reconstructed state object. */
+const directionFees = new WeakMap<V3PoolState, { zeroForOne: number; oneForZero: number }>()
+
+/** Set the state's fee for the direction about to be simulated (no-op for v3). */
+export function applyDirectionFee(state: V3PoolState, zeroForOne: boolean): void {
+  const fees = directionFees.get(state)
+  if (fees) state.feePips = zeroForOne ? fees.zeroForOne : fees.oneForZero
 }
 
 export interface ReplayControls {
@@ -243,6 +272,7 @@ export async function replayPool(
   const controls: ReplayControls = {
     state,
     virtualSwap(amountIn, zeroForOne) {
+      applyDirectionFee(state, zeroForOne)
       const r = simulateV3ExactIn(state, amountIn, zeroForOne, { trace: handlers.trace ?? false })
       state.sqrtPriceX96 = r.sqrtPriceX96After
       state.tick = r.tickAfter
@@ -275,6 +305,7 @@ export async function replayPool(
 
     let sim: SwapResult
     try {
+      applyDirectionFee(state, zeroForOne)
       sim = simulateV3ExactIn(state, input, zeroForOne, { trace: handlers.trace ?? false })
     } catch (err) {
       const near = state.ticks.filter((t) => Math.abs(t.tick - state.tick) < 60).map((t) => `${t.tick}:${t.liquidityNet}`)

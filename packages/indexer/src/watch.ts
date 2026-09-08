@@ -243,6 +243,10 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
   }
 
   let lastBackup = Number(getMeta(db, 'last_backup_ts') ?? 0)
+  // Catch-up chunk adapts to what the RPC will actually serve: a failed
+  // tick halves it, a clean tick grows it back — a wedged loop that never
+  // advances the cursor is worse than a slow one.
+  let chunk = 5_000n
 
   console.log(`watch: starting from block ${cursor}`)
   for (;;) {
@@ -250,7 +254,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
       if (ingestor.clock.needsSync()) await ingestor.clock.sync()
       const latest = await client.getBlockNumber()
       if (latest > cursor) {
-        const to = latest - cursor > 20_000n ? cursor + 20_000n : latest
+        const to = latest - cursor > chunk ? cursor + chunk : latest
         const swaps = await fetchSwapLogs(client, cursor + 1n, to)
         const { ingested, newPools } = await ingestor.ingest(swaps)
         if (getMeta(db, 'liq_from')) {
@@ -280,6 +284,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         }
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())
+        if (chunk < 20_000n) chunk *= 2n
         if (swaps.length + v4.swaps.length > 0) {
           console.log(
             `watch: blocks→${to} v3=${ingested}/${swaps.length} v4=${r4.ingested}/${v4.swaps.length} newPools=${newPools + r4.newPools} traders+${enriched}`,
@@ -287,7 +292,8 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         }
       }
     } catch (err) {
-      console.error('watch: tick failed, retrying —', (err as Error).message.split('\n')[0])
+      if (chunk > 500n) chunk /= 2n
+      console.error(`watch: tick failed (chunk→${chunk}), retrying —`, (err as Error).message.split('\n')[0])
     }
     await new Promise((r) => setTimeout(r, opts.pollMs ?? 6000))
   }
