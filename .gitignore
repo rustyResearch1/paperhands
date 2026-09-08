@@ -16,3 +16,5 @@ backups/
 data/*.sqlite
 data/*.sqlite-wal
 data/*.sqlite-shm
+
+*.tsbuildinfo
