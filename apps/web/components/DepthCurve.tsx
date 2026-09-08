@@ -56,13 +56,13 @@ export default function DepthCurve({ token }: { token: string }) {
           {yTicks.map((t) => (
             <g key={t}>
               <line x1={padL} x2={W - 8} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth="1" />
-              <text x={padL - 6} y={y(t) + 4} textAnchor="end" fontSize="10" fill="var(--muted)" fontFamily="var(--font-plex)">
+              <text x={padL - 6} y={y(t) + 4} textAnchor="end" fontSize="10" fill="var(--muted)" fontFamily="var(--font-jetbrains)">
                 {t >= 100 ? `${(t / 100).toFixed(t >= 1000 ? 0 : 1)}%` : `${t.toFixed(0)}bp`}
               </text>
             </g>
           ))}
           {pb.map((p) => (
-            <text key={`x${p.eth}`} x={x(p.eth)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--muted)" fontFamily="var(--font-plex)">
+            <text key={`x${p.eth}`} x={x(p.eth)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--muted)" fontFamily="var(--font-jetbrains)">
               {p.eth}
             </text>
           ))}
@@ -74,7 +74,7 @@ export default function DepthCurve({ token }: { token: string }) {
           {ps.map((p) => (
             <circle key={`s${p.eth}`} cx={x(p.eth)} cy={y(p.priceImpactBps)} r="3" fill="var(--down)" />
           ))}
-          <text x={W - 8} y={H - 8} textAnchor="end" fontSize="10" fill="var(--faint)" fontFamily="var(--font-plex)">
+          <text x={W - 8} y={H - 8} textAnchor="end" fontSize="10" fill="var(--faint)" fontFamily="var(--font-jetbrains)">
             size · ETH
           </text>
         </svg>

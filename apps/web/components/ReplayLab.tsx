@@ -78,7 +78,7 @@ export default function ReplayLab({ wallet }: { wallet: string }) {
         {pending ? 'Replaying their trades at your size…' : 'Run the replay'}
       </button>
 
-      {error && <p className="mt-3 rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+      {error && <p className="mt-3 rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
       {r && (
         <div className="mt-4 border-t border-line pt-3 text-[13.5px]">
           <table className="tbl mb-3">
@@ -108,7 +108,7 @@ export default function ReplayLab({ wallet }: { wallet: string }) {
               ))}
             </tbody>
           </table>
-          <p className={`rounded-xl px-3 py-2 text-[13px] font-semibold ${r.totalPnl >= 0 ? 'bg-up-soft text-up' : 'bg-down-soft text-down'}`}>
+          <p className={`rounded-lg px-3 py-2 text-[13px] font-semibold ${r.totalPnl >= 0 ? 'bg-up-soft text-up' : 'bg-down-soft text-down'}`}>
             Copying them at {fmt(r.sizeEth, 2)} ETH per buy: {r.totalPnl >= 0 ? '+' : ''}
             {fmt(r.totalPnl)} ETH on {fmt(r.totalInvested, 2)} deployed
           </p>

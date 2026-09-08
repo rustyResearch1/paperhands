@@ -133,7 +133,7 @@ export default function Docs() {
           <p className="mt-2 text-[13px] text-muted">
             <span className="label">params</span> {e.params}
           </p>
-          <a className="num mt-3 block overflow-x-auto rounded-xl bg-bg-3 px-3 py-2 text-[12.5px] text-pen" href={e.example} target="_blank" rel="noreferrer">
+          <a className="num mt-3 block overflow-x-auto rounded-lg bg-bg-3 px-3 py-2 text-[12.5px] text-pen" href={e.example} target="_blank" rel="noreferrer">
             {e.example}
           </a>
         </div>

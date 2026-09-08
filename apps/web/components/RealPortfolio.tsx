@@ -142,7 +142,7 @@ export default function RealPortfolio({ usdRate }: { usdRate: number | null }) {
           const out = lp.data?.positions.filter((p) => p.currentTick !== null && !p.inRange && BigInt(p.liquidity) > 0n) ?? []
           if (out.length === 0) return null
           return (
-            <div className="mx-5 mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-2 text-[13px]">
+            <div className="mx-5 mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-warn-soft px-3 py-2 text-[13px]">
               <span className="pill pill-warn">out of range</span>
               <span>
                 {out.length === 1 ? '1 position is' : `${out.length} positions are`} earning nothing right now — close or re-range{' '}

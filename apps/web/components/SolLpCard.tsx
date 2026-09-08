@@ -176,7 +176,7 @@ export default function SolLpCard({ token, symbol, decimals, nativeUsd }: { toke
           </p>
           <XLpBacktest chain="sol" pool={chosen.address} rangePct={effRange} depositUsd={nativeUsd ? Number(deposit) * nativeUsd : null} />
           {mode !== 'real' ? (
-            <p className="mt-3 rounded-xl bg-bg-2 px-3 py-2 text-[13px] text-muted">
+            <p className="mt-3 rounded-lg bg-bg-2 px-3 py-2 text-[13px] text-muted">
               Switch to <span className="font-semibold text-ink">Real</span> to open this position from your wallet.
             </p>
           ) : !sol.publicKey ? (
@@ -193,9 +193,9 @@ export default function SolLpCard({ token, symbol, decimals, nativeUsd }: { toke
               Ticks {lastPlan.tickLower} → {lastPlan.tickUpper} (now {lastPlan.currentTick}) · {formatQty(BigInt(lastPlan.estA), chosen.tokenA.decimals)} {chosen.tokenA.symbol} + {formatQty(BigInt(lastPlan.estB), chosen.tokenB.decimals)} {chosen.tokenB.symbol}
             </p>
           )}
-          {error && <p className="mt-2 rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+          {error && <p className="mt-2 rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
           {sig && (
-            <p className={`mt-2 rounded-xl px-3 py-2 text-[13px] ${sig.state === 'failed' ? 'bg-down-soft text-down' : 'bg-up-soft text-up'}`}>
+            <p className={`mt-2 rounded-lg px-3 py-2 text-[13px] ${sig.state === 'failed' ? 'bg-down-soft text-down' : 'bg-up-soft text-up'}`}>
               {sig.state === 'confirmed' ? 'Confirmed ✓' : sig.state === 'failed' ? 'Failed on-chain' : 'Submitted…'}{' '}
               <a className="underline" href={EXPLORER.sol.tx(sig.sig)} target="_blank" rel="noreferrer">
                 view transaction

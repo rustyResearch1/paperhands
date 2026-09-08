@@ -359,21 +359,21 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
             )}
             {quote.gasUsd !== null && quote.gasUsd !== undefined && <Row label="Gas · est." value={formatUsd(quote.gasUsd)} valueClass="text-muted" />}
             {quote.alt && (
-              <p className="rounded-xl bg-bg-2 px-3 py-2 text-[12.5px] text-muted">
+              <p className="rounded-lg bg-bg-2 px-3 py-2 text-[12.5px] text-muted">
                 Runner-up: {quote.alt.source === 'engine' ? 'our engine' : quote.alt.source === 'kyberswap' ? 'KyberSwap' : 'Jupiter'} would give{' '}
                 <span className="num">{formatQty(BigInt(quote.alt.amountOut), side === 'buy' ? token.decimals : native.decimals)}</span> via {quote.alt.label}. We route to the better fill.
               </p>
             )}
-            {!quote.executable && <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">This route can&rsquo;t be signed in one transaction at this size.</p>}
-            {quote.fillRatio < 0.999999 && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">The visible liquidity can&rsquo;t absorb this size — only {(quote.fillRatio * 100).toFixed(1)}% fills.</p>}
+            {!quote.executable && <p className="rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn">This route can&rsquo;t be signed in one transaction at this size.</p>}
+            {quote.fillRatio < 0.999999 && <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">The visible liquidity can&rsquo;t absorb this size — only {(quote.fillRatio * 100).toFixed(1)}% fills.</p>}
           </>
         ) : (
           <p className="text-faint">Enter a size to see the exact fill.</p>
         )}
-        {error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
-        {paperFill && <p className="rounded-xl bg-up-soft px-3 py-2 text-[13px] text-up">{paperFill} · paper</p>}
+        {error && <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+        {paperFill && <p className="rounded-lg bg-up-soft px-3 py-2 text-[13px] text-up">{paperFill} · paper</p>}
         {txHash && (
-          <p className={`rounded-xl px-3 py-2 text-[13px] ${txState === 'failed' ? 'bg-down-soft text-down' : 'bg-up-soft text-up'}`}>
+          <p className={`rounded-lg px-3 py-2 text-[13px] ${txState === 'failed' ? 'bg-down-soft text-down' : 'bg-up-soft text-up'}`}>
             {txState === 'confirmed' ? 'Confirmed ✓' : txState === 'failed' ? 'Failed on-chain' : 'Submitted…'}{' '}
             <a className="underline" href={EXPLORER[chain].tx(txHash)} target="_blank" rel="noreferrer">
               view transaction

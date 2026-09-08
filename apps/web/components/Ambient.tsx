@@ -38,8 +38,8 @@ void main() {
   float vign = smoothstep(1.7, 0.4, length(p)) * 0.55 + 0.45;
   float center = smoothstep(0.15, 0.9, length(vUv - vec2(0.5, 0.42)));
   float a = (l1 * 0.9 + l2 * 0.5) * vign * center;
-  float alpha = mix(0.10, 0.16, uDark) * a;
-  vec3 col = mix(uInk, uAccent, 0.55);
+  float alpha = mix(0.075, 0.13, uDark) * a;
+  vec3 col = mix(uInk, uAccent, 0.5);
   gl_FragColor = vec4(col, alpha);
 }
 `
@@ -83,8 +83,8 @@ export default function Ambient() {
       const uniforms = {
         uRes: { value: new THREE.Vector2(1, 1) },
         uTime: { value: 0 },
-        uInk: { value: new THREE.Vector3(...hexToRgb(css('--ink') || '#0b0f14')) },
-        uAccent: { value: new THREE.Vector3(...hexToRgb(css('--up') || '#00b86b')) },
+        uInk: { value: new THREE.Vector3(...hexToRgb(css('--ink') || '#1b1710')) },
+        uAccent: { value: new THREE.Vector3(...hexToRgb(css('--accent') || '#86641f')) },
         uDark: { value: isDark() ? 1 : 0 },
       }
       const scene = new THREE.Scene()
@@ -119,7 +119,7 @@ export default function Ambient() {
       const onTheme = () => {
         uniforms.uDark.value = isDark() ? 1 : 0
         uniforms.uInk.value.set(...hexToRgb(css('--ink')))
-        uniforms.uAccent.value.set(...hexToRgb(css('--up')))
+        uniforms.uAccent.value.set(...hexToRgb(css('--accent')))
         if (reduced) renderer.render(scene, cam)
       }
       window.addEventListener('resize', resize)

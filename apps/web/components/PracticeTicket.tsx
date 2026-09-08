@@ -234,12 +234,12 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
               />
             )}
             {side === 'buy' && quote.markInflation && quote.markInflation > 1.05 && (
-              <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">
+              <p className="rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn">
                 A PnL screen would mark this bag at <b>{quote.markInflation.toFixed(1)}×</b> what the pool would pay.
               </p>
             )}
             {blocked && (
-              <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">
+              <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">
                 The pool can&rsquo;t absorb this size — only {(quote.fillRatio * 100).toFixed(1)}% fills. Trade smaller.
               </p>
             )}
@@ -247,7 +247,7 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
         ) : (
           <p className="text-faint">Enter a size to see the honest fill.</p>
         )}
-        {error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+        {error && <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
       </div>
 
       <button

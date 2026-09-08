@@ -235,7 +235,7 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
         </button>
       )}
       {stock && (
-        <p className="mb-4 rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">
+        <p className="mb-4 rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn">
           Tokenized stock: the issuer restricts transfers by jurisdiction and eligibility inside the token contract. The quote is exact, but
           the swap reverts for wallets the issuer hasn&rsquo;t cleared.
         </p>
@@ -297,21 +297,21 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
               <Row label="Sold right back" value={`${formatEth(BigInt(quote.instantExit))} ETH · ${(retention * 100).toFixed(1)}%`} valueClass={retention < 0.9 ? 'text-down' : 'text-muted'} />
             )}
             {quote.route && !quote.route.executable && (
-              <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">This route mixes v3 and v4 legs — no single transaction can sign it. Try a different size.</p>
+              <p className="rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn">This route mixes v3 and v4 legs — no single transaction can sign it. Try a different size.</p>
             )}
             {quote.route?.hooked && (
-              <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">Hook pool: this fill comes from the on-chain quoter, and the hook can still refuse the real swap. Your wallet will show a failed simulation if so.</p>
+              <p className="rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn">Hook pool: this fill comes from the on-chain quoter, and the hook can still refuse the real swap. Your wallet will show a failed simulation if so.</p>
             )}
             {(quote.fillRatio < 1 || quote.exhaustedWindow) && (
-              <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">The pool can&rsquo;t absorb this size — only {(quote.fillRatio * 100).toFixed(1)}% fills.</p>
+              <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">The pool can&rsquo;t absorb this size — only {(quote.fillRatio * 100).toFixed(1)}% fills.</p>
             )}
           </>
         ) : (
           <p className="text-faint">Enter a size to see the exact fill.</p>
         )}
-        {error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+        {error && <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
         {swap.data && (
-          <p className="rounded-xl bg-up-soft px-3 py-2 text-[13px] text-up">
+          <p className="rounded-lg bg-up-soft px-3 py-2 text-[13px] text-up">
             {swapRcpt.isSuccess ? 'Mined ✓' : 'Submitted…'}{' '}
             <a className="underline" href={`${EXPLORER_URL}/tx/${swap.data}`} target="_blank" rel="noreferrer">
               view transaction

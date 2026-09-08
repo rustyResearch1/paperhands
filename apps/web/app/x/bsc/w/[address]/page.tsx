@@ -64,7 +64,7 @@ export default async function BscWalletPage({ params }: { params: Promise<{ addr
         </Link>
       </div>
 
-      {error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+      {error && <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
       {w && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

@@ -227,7 +227,7 @@ export default function BscLpCard({ token, symbol, decimals, nativeUsd }: { toke
           {plan.data?.error && <p className="mt-2 text-[13px] text-down">{plan.data.error}</p>}
           <XLpBacktest chain="bsc" pool={chosen?.pool ?? null} rangePct={effRange} depositUsd={nativeUsd ? Number(bnb) * nativeUsd : null} />
           {mode !== 'real' ? (
-            <p className="mt-3 rounded-xl bg-bg-2 px-3 py-2 text-[13px] text-muted">
+            <p className="mt-3 rounded-lg bg-bg-2 px-3 py-2 text-[13px] text-muted">
               Switch to <span className="font-semibold text-ink">Real</span> to open this position from your wallet.
             </p>
           ) : !isConnected ? (
@@ -242,7 +242,7 @@ export default function BscLpCard({ token, symbol, decimals, nativeUsd }: { toke
             </button>
           ) : (
             <>
-              {shortToken && p && <p className="mt-2 rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">Not enough {symbol} — buy {formatQty(baseAmount - held, decimals)} more in the order sheet first.</p>}
+              {shortToken && p && <p className="mt-2 rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn">Not enough {symbol} — buy {formatQty(baseAmount - held, decimals)} more in the order sheet first.</p>}
               {needsApproval ? (
                 <button onClick={onApprove} disabled={busy || shortToken || !p} className="btn btn-pen mt-3 w-full">
                   {stage === 'approving' ? 'Approving…' : `Approve ${symbol} for the position manager`}
@@ -254,9 +254,9 @@ export default function BscLpCard({ token, symbol, decimals, nativeUsd }: { toke
               )}
             </>
           )}
-          {error && <p className="mt-2 rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+          {error && <p className="mt-2 rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
           {mint.data && (
-            <p className="mt-2 rounded-xl bg-up-soft px-3 py-2 text-[13px] text-up">
+            <p className="mt-2 rounded-lg bg-up-soft px-3 py-2 text-[13px] text-up">
               {mintRcpt.isSuccess ? 'Position minted ✓' : 'Submitted…'}{' '}
               <a className="underline" href={EXPLORER.bsc.tx(mint.data)} target="_blank" rel="noreferrer">
                 view transaction

@@ -85,7 +85,7 @@ export default function LpLab({ pool, baseAddress, baseSymbol, baseDecimals }: P
       <p className="mb-4 text-[13.5px] text-muted">Would providing liquidity have paid? Your position is added to the pool and every recorded swap re-executes through it.</p>
 
       {s && (
-        <div className="mb-4 rounded-xl bg-bg-2 p-3">
+        <div className="mb-4 rounded-lg bg-bg-2 p-3">
           <div className="flex items-baseline justify-between">
             <span className="label">Suggested ranges</span>
             <span className="num text-[12px] text-muted">24h realized vol ±{s.sigma24Pct.toFixed(0)}%{s.candles < 30 ? ' · thin history' : ''}</span>
@@ -129,7 +129,7 @@ export default function LpLab({ pool, baseAddress, baseSymbol, baseDecimals }: P
         {pending ? 'Replaying every swap…' : 'Run the backtest'}
       </button>
 
-      {error && <p className="mt-3 rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+      {error && <p className="mt-3 rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
       {r && verdict && (
         <div className="mt-4 space-y-2 border-t border-line pt-4 text-[13.5px]">
           <Row label="Replayed" value={`${r.swapsReplayed.toLocaleString()} swaps · ${fmt(r.hours, 1)}h`} />
@@ -139,7 +139,7 @@ export default function LpLab({ pool, baseAddress, baseSymbol, baseDecimals }: P
           <Row label="Impermanent loss" value={`${r.impermanentLoss >= 0 ? '−' : '+'}${fmt(Math.abs(r.impermanentLoss))} ETH`} valueClass={r.impermanentLoss > 0 ? 'text-down' : 'text-up'} />
           <Row label="Net vs holding" value={`${r.netVsHodl >= 0 ? '+' : ''}${fmt(r.netVsHodl)} ETH`} valueClass={r.netVsHodl >= 0 ? 'text-up font-semibold' : 'text-down font-semibold'} />
           <Row label="Fee run-rate" value={`${fmt(r.aprPct, 0)}% APR`} />
-          <p className={`mt-2 rounded-xl px-3 py-2 text-[13px] font-semibold ${verdict.tone === 'up' ? 'bg-up-soft text-up' : verdict.tone === 'warn' ? 'bg-warn-soft text-warn' : 'bg-down-soft text-down'}`}>
+          <p className={`mt-2 rounded-lg px-3 py-2 text-[13px] font-semibold ${verdict.tone === 'up' ? 'bg-up-soft text-up' : verdict.tone === 'warn' ? 'bg-warn-soft text-warn' : 'bg-down-soft text-down'}`}>
             {verdict.text}
           </p>
         </div>

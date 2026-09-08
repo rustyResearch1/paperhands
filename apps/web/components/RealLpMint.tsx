@@ -105,20 +105,20 @@ export default function RealLpMint({ pool, baseAddress, baseSymbol, baseDecimals
         <span className="label">Open for real</span>
         <span className="pill pill-pen">you sign</span>
       </div>
-      {plan.data?.error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{plan.data.error}</p>}
+      {plan.data?.error && <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{plan.data.error}</p>}
       {p && (
         <>
           <Row label="Range (ticks)" value={`${p.tickLower} → ${p.tickUpper} · now ${p.currentTick}`} />
           <Row label="Needs" value={`${formatEth(wethAmount, 4)} ETH + ${formatQty(baseAmount, baseDecimals)} ${baseSymbol}`} strong />
           <Row label="Wallet has" value={`${formatEth(haveEth, 4)} ETH · ${formatQty(held, baseDecimals)} ${baseSymbol}`} valueClass={shortToken || shortEth ? 'text-down' : 'text-muted'} />
           {shortToken && (
-            <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">
+            <p className="rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn">
               Not enough {baseSymbol} — buy {formatQty(baseAmount - held, baseDecimals)} more in the order sheet first, then mint.
             </p>
           )}
-          {error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+          {error && <p className="rounded-lg bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
           {mint.data && (
-            <p className="rounded-xl bg-up-soft px-3 py-2 text-[13px] text-up">
+            <p className="rounded-lg bg-up-soft px-3 py-2 text-[13px] text-up">
               {mintRcpt.isSuccess ? 'Position minted ✓' : 'Submitted…'}{' '}
               <a className="underline" href={`${EXPLORER_URL}/tx/${mint.data}`} target="_blank" rel="noreferrer">
                 view transaction

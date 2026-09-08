@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { IBM_Plex_Mono, Instrument_Sans } from 'next/font/google'
+import { JetBrains_Mono, Public_Sans, Source_Serif_4 } from 'next/font/google'
 import Link from 'next/link'
 import './globals.css'
 import Ambient from '@/components/Ambient'
@@ -10,8 +10,9 @@ import WalletButton from '@/components/WalletButton'
 import { formatEth } from '@/lib/format'
 import { getOrCreateUser } from '@/lib/session'
 
-const sans = Instrument_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-instrument' })
-const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-plex' })
+const sans = Public_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-public' })
+const serif = Source_Serif_4({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-serif-src' })
+const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-jetbrains' })
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://paperhands-production.up.railway.app'),
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
   },
   twitter: { card: 'summary_large_image', title: 'PaperHands', description: 'Honest trading on Robinhood Chain — practice or real.' },
 }
-export const viewport: Viewport = { themeColor: '#ffffff', width: 'device-width', initialScale: 1 }
+export const viewport: Viewport = { themeColor: '#eeebe5', width: 'device-width', initialScale: 1 }
 
 const NAV = [
   { href: '/', label: 'Markets' },
@@ -39,14 +40,14 @@ const NAV = [
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getOrCreateUser()
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
       <body className="min-h-screen">
         <Providers>
           <Ambient />
           <header className="above sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-md">
             <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
-              <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-                <span className="inline-block h-6 w-6 rounded-lg bg-up" aria-hidden="true" />
+              <Link href="/" className="serif flex items-center gap-2 text-[19px] font-semibold tracking-tight">
+                <span className="inline-block h-5 w-5 rounded-[5px] bg-ink" aria-hidden="true" />
                 PaperHands
               </Link>
               <nav className="hidden items-center gap-1 text-[14px] md:flex">

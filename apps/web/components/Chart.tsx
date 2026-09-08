@@ -20,18 +20,18 @@ export default function Chart({ pool }: { pool: string }) {
 
   useEffect(() => {
     if (!ref.current) return
-    const up = css('--up') || '#00b86b'
-    const down = css('--down') || '#ef4444'
-    const line = css('--line') || '#e5e7eb'
-    const muted = css('--muted') || '#6b7280'
-    const pen = css('--pen') || '#2563eb'
+    const up = css('--up') || '#175435'
+    const down = css('--down') || '#a63a2c'
+    const line = css('--line') || '#e2dbcf'
+    const muted = css('--muted') || '#756c5e'
+    const pen = css('--pen') || '#6a4e19'
 
     const chart = createChart(ref.current, {
       autoSize: true,
       layout: {
         background: { color: 'transparent' },
         textColor: muted,
-        fontFamily: "var(--font-plex), 'IBM Plex Mono', monospace",
+        fontFamily: "var(--font-jetbrains), 'JetBrains Mono', monospace",
         fontSize: 11,
       },
       grid: { vertLines: { color: line }, horzLines: { color: line } },
