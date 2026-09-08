@@ -74,7 +74,9 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
   // Routing makes every verified venue tradable: hooked pools quote through
   // the chain's own v4 Quoter, USDG pools trade via a 2-leg ETH↔USDG path.
   const tradable = Boolean(meta.factory_verified)
-  const labReady = meta.version === 3 && !meta.hooked && (meta.quoteSymbol === 'WETH' || meta.quoteSymbol === 'ETH')
+  // Replay covers v3 and hookless v4 pools quoted in ETH; hooks rewrite
+  // fills (unsimulable) and USDG-quoted labs await a quote-currency ledger.
+  const labReady = !meta.hooked && (meta.quoteSymbol === 'WETH' || meta.quoteSymbol === 'ETH')
 
   return (
     <div>
