@@ -1,0 +1,66 @@
+export const metadata = { title: 'PaperHands API' }
+
+const ENDPOINTS = [
+  {
+    path: '/api/v1/quote',
+    params: 'token, side=buy|sell, amount (raw units: ETH wei for buys, token units for sells), real=1 (v3-executable routes only)',
+    what: 'Best-fill route across every venue a token has — v3 tiers, v4 pools, 2-leg via USDG. Exact engine math (validated wei-for-wei against the on-chain quoters). Returns amounts, impact, price move, instant-exit, markInflation and per-leg execution details.',
+    example: '/api/v1/quote?token=0xd7321801caae694090694ff55a9323139f043b88&side=buy&amount=1000000000000000000',
+  },
+  {
+    path: '/api/v1/depth',
+    params: 'token, side=buy|sell',
+    what: 'The impact curve: output, impact and price move at standard sizes (0.01–25 ETH). Depth as it should have always been defined.',
+    example: '/api/v1/depth?token=0xd7321801caae694090694ff55a9323139f043b88',
+  },
+  {
+    path: '/api/v1/pools',
+    params: 'sort=traction|vol|change5m|change30m|trades|depth, limit, safe=0|1',
+    what: 'One row per token with price, traction (30m volume acceleration), volumes, trades, depth, verification.',
+    example: '/api/v1/pools?sort=traction&limit=20',
+  },
+  {
+    path: '/api/v1/replay',
+    params: 'wallet, eth (size per mirrored buy), hours',
+    what: 'Would tailing this wallet have worked at your size? Replays its recorded trades through historical liquidity with your bankroll. Leftovers exit at realizable value.',
+    example: '/api/v1/replay?wallet=0xf70da97812cb96acdf810712aa562db8dfa3dbef&eth=0.25&hours=24',
+  },
+  {
+    path: '/api/v1/lp',
+    params: 'pool (v3 hookless), range (± %), eth (deposit), hours',
+    what: 'LP backtest: your position is added to the pool and every recorded swap re-executes through it. Fees earned, impermanent loss, net vs holding, APR run-rate.',
+    example: '/api/v1/lp?pool=0x588b0785f50063260003b7790c42f1ef74902746&range=30&eth=1&hours=24',
+  },
+]
+
+export default function Docs() {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div className="rise">
+        <h1 className="text-[28px] font-semibold tracking-tight">API</h1>
+        <p className="text-muted">
+          The same engine that powers every screen, as JSON. Free, no key, 60 requests per minute per IP (30 for depth). Built for
+          agents and bots that need honest execution numbers, not chart prices.
+        </p>
+      </div>
+      {ENDPOINTS.map((e) => (
+        <div key={e.path} className="card rise rise-2 p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="pill pill-up">GET</span>
+            <code className="num text-[15px] font-semibold">{e.path}</code>
+          </div>
+          <p className="mt-2 text-[14px]">{e.what}</p>
+          <p className="mt-2 text-[13px] text-muted">
+            <span className="label">params</span> {e.params}
+          </p>
+          <a className="num mt-3 block overflow-x-auto rounded-xl bg-bg-3 px-3 py-2 text-[12.5px] text-pen" href={e.example} target="_blank" rel="noreferrer">
+            {e.example}
+          </a>
+        </div>
+      ))}
+      <p className="text-[12px] text-faint">
+        Quotes are non-binding simulations of live pool state. Practice balances are not money. Nothing here is financial advice.
+      </p>
+    </div>
+  )
+}

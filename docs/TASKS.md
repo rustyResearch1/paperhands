@@ -16,11 +16,11 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 - [x] Real LP positions (v3 NFPM): range, in-range?, fees owed (IL vs hodl: later)
 
 ## Stage C — Real execution (non-custodial, user signs)
-- [ ] Approvals flow (ERC20 → router / position manager)
-- [ ] Swap: v3 exactInputSingle / exactInput (2-leg via USDG) with our exact minOut
+- [x] Approvals flow (ERC20 → router)
+- [x] Swap: v3 exactInputSingle / exactInput (2-leg via USDG) with our exact minOut
 - [ ] Swap: v4 single-hop via Universal Router (V4_SWAP: SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL)
 - [ ] LP mint: v3 NFPM.mint from strategy range; collect / decrease / burn
-- [ ] Honest pre-trade sheet: fill, impact, price move, instant-exit, route, minOut
+- [x] Honest pre-trade sheet: fill, impact, price move, instant-exit, route, minOut
 
 ## Stage D — LP strategy engine
 - [ ] Realized-vol range suggester (from candles) + expected fee APR from replay
