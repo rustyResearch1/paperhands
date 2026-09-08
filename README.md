@@ -150,7 +150,7 @@ pnpm --filter @paperhands/web dev     # → http://localhost:3000
 pnpm test                                   # engine unit tests
 pnpm --filter @paperhands/chain validate    # engine vs on-chain QuoterV2
 pnpm --filter @paperhands/chain validate:v4 # engine vs on-chain v4 Quoter
-pnpm --filter @paperhands/web exec tsx scripts/sim-real-swap.mts   # real calldata vs chain
+pnpm --filter @paperhands/web sim [pool] [buy|sell] [amountRaw]   # real calldata vs chain (needs the web app running)
 ```
 
 Env: `PAPERHANDS_DB` (SQLite path), `PAPERHANDS_RPC` (use a dedicated Alchemy/QuickNode
