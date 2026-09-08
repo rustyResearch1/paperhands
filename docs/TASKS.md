@@ -89,4 +89,5 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] Error boundary, not-found, loading skeleton, OG/Twitter metadata
 - [x] Usage counters (API hits per endpoint, replay + LP backtest runs) shown on /docs
 - [x] README/docs refresh
-- [ ] Deploy + smoke test on production (home, token page, /api/v1/alerts, /docs)
+- [x] Deploy + smoke test on production (all pages + APIs incl. multi-chain; first scheduled validation on prod: 500 swaps, 100% exact)
+- [x] Markets screener precomputed by the watch loop every minute (stored JSON; live query only as fallback) — `/api/health` reports its age

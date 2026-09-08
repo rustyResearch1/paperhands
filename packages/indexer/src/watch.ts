@@ -6,6 +6,7 @@ import { fetchV4Logs, fetchV4LiqForPool, registerV4Pool, resolveV4PoolById } fro
 import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, setMeta } from './db.js'
+import { refreshScreener } from './screener.js'
 import { BlockClock } from './timestamps.js'
 import { validateNextPool } from './validate.js'
 import { refreshWireRank } from './wire.js'
@@ -250,6 +251,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
   let lastBackup = Number(getMeta(db, 'last_backup_ts') ?? 0)
   let lastWire = Number(getMeta(db, 'wire_rank_ts') ?? 0)
   let lastValidate = 0
+  let lastScreener = 0
   // Catch-up chunk adapts to what the RPC will actually serve: a failed
   // tick halves it, a clean tick grows it back — a wedged loop that never
   // advances the cursor is worse than a slow one.
@@ -292,6 +294,17 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())
         if (chunk < 20_000n) chunk *= 2n
+        // The Markets screener aggregation, precomputed so page loads read JSON.
+        if (nowSec - lastScreener > 60) {
+          lastScreener = nowSec
+          const t0 = Date.now()
+          try {
+            const n = refreshScreener(db)
+            if (Date.now() - t0 > 3000) console.log(`watch: screener refreshed (${n} rows, ${Date.now() - t0}ms)`)
+          } catch (err) {
+            console.error('screener refresh failed:', (err as Error).message)
+          }
+        }
         // The Wire ranking is too heavy for a web request; refresh it here.
         if (nowSec - lastWire > 10 * 60) {
           lastWire = nowSec
