@@ -21,7 +21,8 @@ interface ValueRow {
 }
 
 function useBagValues(bags: OpenBag[]) {
-  const top = bags.filter((b) => BigInt(b.openQtyRaw) > 0n).sort((a, b) => b.markEth - a.markEth).slice(0, 10)
+  // The six biggest bags: each is a full best-route quote against live pools.
+  const top = bags.filter((b) => BigInt(b.openQtyRaw) > 0n).sort((a, b) => b.markEth - a.markEth).slice(0, 6)
   return useQuery({
     queryKey: ['bags', top.map((b) => `${b.token}:${b.openQtyRaw}`).join('|')],
     queryFn: async () => {

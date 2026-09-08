@@ -78,6 +78,18 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
       minute candles × your share of current in-range liquidity, IL from the price path, time in range, fee APR run-rate
 - [ ] I5 Meteora DLMM execution (bin positions) · Raydium CLMM · BSC USDT-quoted LP deposits
 
+## Stage K — Explorer + trencher ergonomics
+- [x] Copy-CA pills on every token page and market row (Robinhood, Solana, BSC) and on wallet pages
+- [x] Robinhood wallet explorer (`/w/<address>`): realized P&L with pro-rata cost basis, win rate, volume, per-token table,
+      open bags valued client-side at what the pool would pay (`/api/v1/xvalue`), swap timeline with prices + tx links, paging,
+      Wire rank, stablecoin legs excluded from P&L; wallet search on the Wire
+- [x] BSC wallet explorer (`/x/bsc/w/<address>`) from Etherscan V2 (set `ETHERSCAN_API_KEY`): swaps reconstructed from BNB/WBNB + token
+      transfers, same P&L rules, open bags valued by our engine / KyberSwap
+- [x] Ledger lock hardening: web `busy_timeout` 20s, ephemeral session instead of a 500 under lock, batched retention prune
+- [ ] Solana wallet explorer (needs a history source: Helius enhanced transactions / DAS — key)
+- [ ] Bridge tab via deBridge DLN (supports Robinhood 4663, Solana, BSC; keyless quote + tx build); cross-chain trending list
+- [ ] Learn section (live-data lessons + paper challenges)
+
 ## User-side (needs your accounts / wallet)
 - [ ] Set `PAPERHANDS_RPC` on Railway to a dedicated Alchemy/QuickNode Robinhood Chain endpoint — production still runs on the
       public RPC (rate limits + ~3k blocks of pinned state)
