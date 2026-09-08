@@ -9,7 +9,7 @@ import { lpScreen } from './x/lp'
 const g = globalThis as { __phwarm?: boolean }
 
 export function startWarmup() {
-  if (g.__phwarm) return
+  if (g.__phwarm || process.env.NEXT_PHASE === 'phase-production-build') return
   g.__phwarm = true
   const run = async () => {
     const t0 = Date.now()
