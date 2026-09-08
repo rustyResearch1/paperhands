@@ -19,6 +19,7 @@ interface TicketQuote {
   instantExit?: string
   markInflation?: number
   block: string
+  route?: { label: string; legs: string[]; twoLeg: boolean; hooked: boolean; exact: boolean; version: number }
   error?: string
 }
 
@@ -187,6 +188,13 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
       <div className="mt-4 border-t-2 border-dashed border-ink pt-3 space-y-1.5 text-[12px]">
         {quote ? (
           <>
+            {quote.route && (
+              <Row
+                label={quote.route.twoLeg ? 'routed (2 legs)' : 'routed'}
+                value={quote.route.label}
+                valueClass={quote.route.hooked ? 'text-stamp' : 'text-pen'}
+              />
+            )}
             <Row label="spot" value={`${formatPrice(quote.spotPrice)} ETH`} />
             <Row label="your fill" value={`${formatPrice(quote.execPrice)} ETH`} />
             <Row label="price impact" value={formatBps(quote.priceImpactBps)} valueClass={impactClass(quote.priceImpactBps)} />
@@ -246,7 +254,11 @@ export default function TradeTicket({ pool, baseSymbol, baseDecimals, balanceWei
       >
         {pending ? 'stamping…' : side === 'buy' ? `buy ${baseSymbol}` : `sell ${baseSymbol}`}
       </button>
-      <p className="rule-label mt-2 text-center">fill executes at live pool state, not your screenshot</p>
+      <p className="rule-label mt-2 text-center">
+        {quote?.route?.hooked
+          ? '⚓ hooked pool: quoted by the chain itself (hook logic included), so no post-trade price preview'
+          : 'best fill across every venue · executes at live pool state, not your screenshot'}
+      </p>
     </div>
   )
 }

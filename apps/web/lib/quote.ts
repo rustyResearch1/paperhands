@@ -1,14 +1,13 @@
-import { makeClient } from '@paperhands/chain'
 import { readPoolState, type PoolStateSnapshot } from '@paperhands/indexer'
-import { quoteV3ExactIn, roundTripV3, type Quote } from '@paperhands/engine'
+import { chainClient as client } from './chain'
 import { db } from './db'
+import { bestFill } from './route'
+
+export { chainClient } from './chain'
 
 const g = globalThis as unknown as {
-  __phclient?: ReturnType<typeof makeClient>
   __phsnaps?: Map<string, { snap: PoolStateSnapshot; at: number }>
 }
-const client = (g.__phclient ??= makeClient())
-export const chainClient = client
 const snaps = (g.__phsnaps ??= new Map())
 
 const SNAP_TTL_MS = 15_000
@@ -82,24 +81,37 @@ export interface TicketQuote {
   /** buy only: markValue/realizable right after the fill */
   markInflation?: number
   block: string
+  /** How the order was routed — the venue(s) that gave the best fill. */
+  route: {
+    label: string
+    legs: string[]
+    venuePool: string
+    version: number
+    hooked: boolean
+    twoLeg: boolean
+    /** Every leg quoted by our engine (false = a hooked pool quoted on-chain). */
+    exact: boolean
+  }
 }
 
-function humanPrices(q: Quote, side: 'buy' | 'sell', baseDecimals: number) {
-  // engine prices are raw out-per-in ratios; normalize to ETH-per-base
+/** Raw out-per-in ratios → human ETH-per-base. */
+function humanPrices(spotRaw: number, execRaw: number, side: 'buy' | 'sell', baseDecimals: number) {
   const scale = 10 ** (baseDecimals - 18)
   if (side === 'buy') {
-    // in = ETH, out = base → out/in is base-per-ETH
     return {
-      spotPrice: q.spotPriceBefore > 0 ? (1 / q.spotPriceBefore) * scale : 0,
-      execPrice: q.executionPrice > 0 ? (1 / q.executionPrice) * scale : 0,
+      spotPrice: spotRaw > 0 ? (1 / spotRaw) * scale : 0,
+      execPrice: execRaw > 0 ? (1 / execRaw) * scale : 0,
     }
   }
-  return {
-    spotPrice: q.spotPriceBefore * scale,
-    execPrice: q.executionPrice * scale,
-  }
+  return { spotPrice: spotRaw * scale, execPrice: execRaw * scale }
 }
 
+/**
+ * Quote a trade for the token this pool page represents — routed across
+ * every venue the token has (v3 tiers, v4 pools, 2-leg via USDG), filling
+ * on the best. The ledger stays ETH-denominated: routes always start
+ * (buy) or end (sell) in ETH.
+ */
 export async function ticketQuote(
   pool: string,
   side: 'buy' | 'sell',
@@ -108,44 +120,35 @@ export async function ticketQuote(
 ): Promise<TicketQuote> {
   const meta = poolMeta(pool)
   if (!meta) throw new Error('unknown or unpriced pool')
-  const snap = await getSnapshot(pool, opts)
-  const baseIsToken0 = meta.base_is_token0 === 1
+  const r = await bestFill(meta.baseAddress, side, amountIn, { fresh: opts.fresh ?? false })
 
-  let q: Quote
-  let instantExit: bigint | undefined
-  let markInflation: number | undefined
-  if (side === 'buy') {
-    const rt = roundTripV3(snap.state, amountIn, baseIsToken0)
-    q = rt.buy
-    if (q.amountOut > 0n) {
-      instantExit = rt.sell.amountOut
-      markInflation = rt.markInflation
-    }
-  } else {
-    q = quoteV3ExactIn(snap.state, amountIn, baseIsToken0)
-  }
-
-  // How far this order shoves the pool's own price — the "mcap move" a
-  // paper trade would cause if it were real. Signed: buys positive.
-  const sqrtBefore = Number(snap.state.sqrtPriceX96) / 2 ** 96
-  const sqrtAfter = Number(q.sqrtPriceX96After) / 2 ** 96
-  const rawRatio = sqrtBefore > 0 ? (sqrtAfter / sqrtBefore) ** 2 : 1
-  const priceMovePct = ((baseIsToken0 ? rawRatio : 1 / rawRatio) - 1) * 100
+  const legLabel = (v: { version: number; quoteSymbol: string; baseSymbol: string; fee: number; hooked: boolean }) =>
+    `v${v.version} ${v.quoteSymbol}/${v.baseSymbol} ${v.fee >= 0x800000 ? 'dyn' : `${(v.fee / 10_000).toFixed(2)}%`}${v.hooked ? ' ⚓' : ''}`
+  const legs = r.legs.map((l) => legLabel(l.venue))
 
   const out: TicketQuote = {
     side,
-    amountIn: q.amountIn.toString(),
-    amountOut: q.amountOut.toString(),
-    feeAmount: q.feeAmount.toString(),
-    fillRatio: q.fillRatio,
-    exhaustedWindow: q.exhaustedWindow,
-    priceImpactBps: q.priceImpactBps,
-    priceMovePct,
-    feeBps: q.feeBps,
-    ...humanPrices(q, side, meta.baseDecimals),
-    block: snap.blockNumber.toString(),
+    amountIn: r.amountIn.toString(),
+    amountOut: r.amountOut.toString(),
+    feeAmount: r.feeAmount.toString(),
+    fillRatio: r.fillRatio,
+    exhaustedWindow: r.exhaustedWindow,
+    priceImpactBps: r.priceImpactBps,
+    priceMovePct: r.priceMovePct,
+    feeBps: r.feeBps,
+    ...humanPrices(r.spotRaw, r.execRaw, side, meta.baseDecimals),
+    block: '0',
+    route: {
+      label: legs.join(' → '),
+      legs,
+      venuePool: r.baseVenue.pool,
+      version: r.baseVenue.version,
+      hooked: r.baseVenue.hooked,
+      twoLeg: r.twoLeg,
+      exact: r.exact,
+    },
   }
-  if (instantExit !== undefined) out.instantExit = instantExit.toString()
-  if (markInflation !== undefined) out.markInflation = markInflation
+  if (r.instantExit !== undefined) out.instantExit = r.instantExit.toString()
+  if (r.markInflation !== undefined) out.markInflation = r.markInflation
   return out
 }

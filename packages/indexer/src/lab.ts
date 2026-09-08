@@ -41,6 +41,7 @@ function labPoolMeta(db: Database.Database, pool: string): PoolMetaRow {
     )
     .get(pool.toLowerCase()) as PoolMetaRow | undefined
   if (!row) throw new Error('pool not tracked, unpriced, or unverified')
+  if (pool.length === 66) throw new Error('replay for v4 pools is not supported yet — v3 pools only for now')
   if (row.hooks && row.hooks !== '0x0000000000000000000000000000000000000000') {
     throw new Error('hook pool — hooks can rewrite fills, so simulation is disabled')
   }

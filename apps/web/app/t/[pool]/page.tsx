@@ -25,7 +25,7 @@ interface SwapRow {
 export default async function TokenPage({ params }: { params: Promise<{ pool: string }> }) {
   const { pool: rawPool } = await params
   const pool = rawPool.toLowerCase()
-  if (!/^0x[0-9a-f]{40}$/.test(pool)) notFound()
+  if (!/^0x[0-9a-f]{40}$/.test(pool) && !/^0x[0-9a-f]{64}$/.test(pool)) notFound()
   const meta = poolMeta(pool)
   if (!meta) notFound()
 
@@ -59,16 +59,22 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
       realizable = null
     }
   }
-  const mark = lastClose && qty > 0n ? (Number(qty) / 10 ** meta.baseDecimals) * lastClose : null
+  const usdRate = ethUsdRate()
+  // Marked value in ETH: USDG-quoted pools price the token in dollars.
+  const markQuote = lastClose && qty > 0n ? (Number(qty) / 10 ** meta.baseDecimals) * lastClose : null
+  const mark =
+    markQuote === null ? null : meta.quoteSymbol === 'USDG' ? (usdRate ? markQuote / usdRate : null) : markQuote
   const cost = BigInt(position?.cost_quote ?? '0')
 
-  const usdRate = ethUsdRate()
   const tape = db
     .prepare('SELECT ts, amount0, amount1, trader, tx_hash, log_index FROM swaps WHERE pool = ? ORDER BY block DESC, log_index DESC LIMIT 25')
     .all(pool) as SwapRow[]
   const baseIsToken0 = meta.base_is_token0 === 1
   const depth = quoteDepth({ ...poolRow, quoteDecimals: meta.quoteDecimals })
-  const tradable = Boolean(meta.factory_verified) && !meta.hooked && (meta.quoteSymbol === 'WETH' || meta.quoteSymbol === 'ETH')
+  // Routing makes every verified venue tradable: hooked pools quote through
+  // the chain's own v4 Quoter, USDG pools trade via a 2-leg ETH↔USDG path.
+  const tradable = Boolean(meta.factory_verified)
+  const labReady = meta.version === 3 && !meta.hooked && (meta.quoteSymbol === 'WETH' || meta.quoteSymbol === 'ETH')
 
   return (
     <div>
@@ -147,7 +153,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
                   return (
                     <tr key={`${s.tx_hash}:${s.log_index}`}>
                       <td className={isBuy ? 'text-up' : 'text-down'}>{isBuy ? 'buy' : 'sell'}</td>
-                      <td>{formatEth(abs)}</td>
+                      <td>{formatQty(abs, meta.quoteDecimals)}</td>
                       <td className="text-graphite">
                         {s.trader && s.trader !== '0x' ? (
                           <Link className="hover:text-pen hover:underline underline-offset-4" href={`/w/${s.trader}`}>
@@ -176,17 +182,20 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
                 balanceWei={user.balance_quote}
                 positionQty={position?.qty ?? '0'}
               />
-              <LpLab pool={pool} />
+              {labReady ? (
+                <LpLab pool={pool} />
+              ) : (
+                <p className="rule-label">
+                  lp lab: replay for {meta.version === 4 ? 'v4' : 'hooked / USDG'} pools is coming — trading routes
+                  through them already.
+                </p>
+              )}
             </>
           ) : (
             <div className="slip p-4">
               <div className="stamp text-stamp text-[10px] mb-2">view only</div>
               <p className="text-[12px] text-graphite">
-                {meta.hooked
-                  ? 'This is a hook pool — its hooks can rewrite fills, so honest simulation is impossible. Charts and the tape stay live.'
-                  : meta.quoteSymbol === 'USDG'
-                    ? 'This pool trades against USDG (dollars). The ETH paper bankroll cannot trade it yet — charts and the tape stay live.'
-                    : 'This pool is not verified against the Uniswap factory — treat as hostile.'}
+                This pool is not verified against the Uniswap factory — treat as hostile. Charts and the tape stay live.
               </p>
             </div>
           )}

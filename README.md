@@ -107,6 +107,17 @@ indexer discovers, watches, attributes, and mirrors tails in the same container,
 the ledger lives on the volume. (Vercel + Postgres split is the scale-up path — the
 SQLite one-box is deliberate for v0.)
 
+## Every venue, best fill
+
+Robinhood Chain is fragmented: a token can trade on several v3 fee tiers, v4 pools
+(native ETH or USDG quoted, half of them with launchpad hooks), all at once. Every paper
+order is **routed like an aggregator would**: the engine quotes every venue the token has
+— direct ETH pools and 2-leg paths through USDG — and fills on the best. Hookless pools
+(v3 and v4) are quoted by our engine, which is validated wei-for-wei against the chain's
+v3 *and* v4 quoters (v4's per-direction protocol fee included). Hooked v4 pools are
+quoted by the chain's own v4 Quoter, so hook logic is exact — at the cost of no
+post-trade price preview. The order slip shows the route it took.
+
 ## How a fill actually works here
 
 1. Ticket asks `/api/quote` → server reads **live** `slot0`, in-range liquidity, and a
