@@ -1,4 +1,4 @@
-import type { ChainClient } from '@paperhands/chain'
+import { hasDedicatedRpc, type ChainClient } from '@paperhands/chain'
 import type Database from 'better-sqlite3'
 import type { Address } from 'viem'
 import { fetchLiqLogs, fetchSwapLogs, insertLiqEvents, resolvePool, type DecodedSwap } from './discover.js'
@@ -304,7 +304,9 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         for (const init of v4.inits) await registerV4Pool(client, db, init)
         const r4 = await ingestor.ingest(v4.swaps)
         insertLiqEvents(db, v4.liq)
-        const enriched = await ingestor.enrichTraders(60)
+        // Attribution (tx → wallet) is one lookup per transaction: 60 per tick
+        // is all the public RPC tolerates; a dedicated endpoint gets thousands.
+        const enriched = await ingestor.enrichTraders(Number(process.env.PAPERHANDS_ATTRIB_PER_TICK ?? (hasDedicatedRpc() ? 3000 : 60)))
         const tailFills = await executeTails(client, db)
         if (tailFills > 0) console.log(`watch: mirrored ${tailFills} tail fill(s)`)
 

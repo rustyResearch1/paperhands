@@ -176,9 +176,13 @@ pnpm --filter @paperhands/chain validate:v4 # engine vs on-chain v4 Quoter
 pnpm --filter @paperhands/web sim [pool] [buy|sell] [amountRaw]   # real calldata vs chain (needs the web app running)
 ```
 
-Env: `PAPERHANDS_DB` (SQLite path), `PAPERHANDS_RPC` (use a dedicated Alchemy/QuickNode
-endpoint in production — the public RPC rate-limits and serves only ~3k blocks of pinned
-state), `PAPERHANDS_SECRET` (cookie HMAC), `NEXT_PUBLIC_SITE_URL`.
+Env: `PAPERHANDS_DB` (SQLite path), `PAPERHANDS_RPC` (a dedicated Robinhood Chain endpoint —
+OrbitFlare, dRPC, QuickNode, Alchemy; the public RPC rate-limits and serves only ~3k blocks of
+pinned state), `PAPERHANDS_RPC_WEB` (optional second endpoint just for quotes), `PAPERHANDS_ATTRIB_PER_TICK`
+(transaction lookups per watch tick; 60 on the public RPC, 3000 with a dedicated one),
+`PAPERHANDS_SECRET` (cookie HMAC), `ETHERSCAN_API_KEY` (BNB Chain wallet explorer), `NEXT_PUBLIC_SITE_URL`.
+With a dedicated endpoint the client batches JSON-RPC calls (the public node can't) and falls back to the
+public RPC only if the dedicated one fails.
 
 ## Deploy
 
