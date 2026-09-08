@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMeta, lpBacktest } from '@paperhands/indexer'
+import { bump } from '@/lib/counters'
 import { db } from '@/lib/db'
 import { chainClient } from '@/lib/quote'
 
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
       fromBlock,
       toBlock: cursor,
     })
+    bump('lab.lp')
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 })

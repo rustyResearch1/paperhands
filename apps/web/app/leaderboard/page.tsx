@@ -61,7 +61,7 @@ export default async function Leaderboard() {
           <p className="text-muted">No one has placed a paper trade. The board remembers the first.</p>
         </div>
       ) : (
-        <div className="card rise rise-2 max-w-3xl overflow-hidden">
+        <div className="card rise rise-2 max-w-3xl overflow-x-auto">
           <table className="tbl">
             <thead>
               <tr>
@@ -69,7 +69,7 @@ export default async function Leaderboard() {
                 <th>Trader</th>
                 <th>Equity</th>
                 <th>Realized</th>
-                <th>Trades</th>
+                <th className="hidden md:table-cell">Trades</th>
               </tr>
             </thead>
             <tbody>
@@ -87,7 +87,7 @@ export default async function Leaderboard() {
                       {r.realized >= 0 ? '+' : ''}
                       {fmtEth(r.realized)}
                     </td>
-                    <td className="text-muted">{r.trades}</td>
+                    <td className="hidden text-muted md:table-cell">{r.trades}</td>
                   </tr>
                 )
               })}

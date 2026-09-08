@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMeta, walletReplay } from '@paperhands/indexer'
+import { bump } from '@/lib/counters'
 import { db } from '@/lib/db'
 import { chainClient } from '@/lib/quote'
 
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
       Math.max(first.b - 1, liqFrom),
       cursor,
     )
+    bump('lab.replay')
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 })

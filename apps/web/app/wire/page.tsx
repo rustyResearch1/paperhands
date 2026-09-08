@@ -40,11 +40,11 @@ export default function Wire() {
                 <tr>
                   <th>Wallet</th>
                   <th>Net flow</th>
-                  <th>Open bags (marked)</th>
-                  <th>Volume</th>
-                  <th>Buys</th>
-                  <th>Sells</th>
-                  <th>Pools</th>
+                  <th className="hidden md:table-cell">Open bags (marked)</th>
+                  <th className="hidden md:table-cell">Volume</th>
+                  <th className="hidden md:table-cell">Buys</th>
+                  <th className="hidden md:table-cell">Sells</th>
+                  <th className="hidden md:table-cell">Pools</th>
                   <th>Seen</th>
                 </tr>
               </thead>
@@ -63,11 +63,11 @@ export default function Wire() {
                       {r.netFlowEth >= 0 ? '+' : ''}
                       {fmt(r.netFlowEth)} ETH
                     </td>
-                    <td className="text-muted">{fmt(r.openMarkEth)} ETH</td>
-                    <td>{fmt(r.volEth, 1)}</td>
-                    <td className="text-up">{r.buys}</td>
-                    <td className="text-down">{r.sells}</td>
-                    <td>{r.pools}</td>
+                    <td className="hidden text-muted md:table-cell">{fmt(r.openMarkEth)} ETH</td>
+                    <td className="hidden md:table-cell">{fmt(r.volEth, 1)}</td>
+                    <td className="hidden text-up md:table-cell">{r.buys}</td>
+                    <td className="hidden text-down md:table-cell">{r.sells}</td>
+                    <td className="hidden md:table-cell">{r.pools}</td>
                     <td className="text-muted">{timeAgo(r.lastTs)}</td>
                   </tr>
                 ))}

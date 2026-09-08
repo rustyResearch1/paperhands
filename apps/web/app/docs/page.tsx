@@ -1,4 +1,7 @@
+import { counters } from '@/lib/counters'
+
 export const metadata = { title: 'PaperHands API' }
+export const dynamic = 'force-dynamic'
 
 const ENDPOINTS = [
   {
@@ -40,6 +43,13 @@ const ENDPOINTS = [
 ]
 
 export default function Docs() {
+  let served: Record<string, number> = {}
+  try {
+    served = counters('api.v1.')
+  } catch {
+    // counters are decoration
+  }
+  const total = Object.values(served).reduce((a, b) => a + b, 0)
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="rise">
@@ -48,6 +58,16 @@ export default function Docs() {
           The same engine that powers every screen, as JSON. Free, no key, 60 requests per minute per IP (30 for depth). Built for
           agents and bots that need honest execution numbers, not chart prices.
         </p>
+        {total > 0 && (
+          <p className="mt-2 flex flex-wrap gap-1.5 text-[12px] text-faint">
+            <span className="pill">{total.toLocaleString()} requests served</span>
+            {Object.entries(served).map(([k, n]) => (
+              <span key={k} className="chip">
+                {k.replace('api.v1.', '')} {n.toLocaleString()}
+              </span>
+            ))}
+          </p>
+        )}
       </div>
       {ENDPOINTS.map((e) => (
         <div key={e.path} className="card rise rise-2 p-5">

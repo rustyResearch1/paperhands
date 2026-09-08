@@ -1,12 +1,15 @@
 # 🧻 PaperHands
 
-**Execution-honest paper trading for Robinhood Chain memecoins.**
+**Honest trading on Robinhood Chain — practice with a paper bankroll, or trade for real
+from your own wallet. Same exact engine either way.**
 
 Everyone thinks they can pick memecoins. PaperHands lets you find out with 10 fantasy ETH
 instead of your rent — and unlike every other paper-trading toy, it refuses to lie to you
-about your fills.
+about your fills. When you're ready, flip the switch to **Real**: the same quotes become
+transactions your wallet signs, straight to the Uniswap contracts. We never hold keys or
+funds.
 
-Live at `localhost:3000` against **Robinhood Chain mainnet** (chain id 4663).
+Production: one Railway box against **Robinhood Chain mainnet** (chain id 4663).
 
 ---
 
@@ -20,9 +23,10 @@ it's the *opposite of the lesson*. On thin concentrated liquidity:
 - the chart marks your bag at the last trade's price — through liquidity that cannot
   possibly absorb your size.
 
-So PaperHands simulates every fill through **the actual Uniswap v3 tick-walk math against
+So PaperHands simulates every fill through **the actual Uniswap tick-walk math against
 live pool state**, and scores every position by what the pool *would actually pay you to
-leave*, not what the chart says. Two numbers, everywhere:
+leave*, not what the chart says. Two numbers, everywhere — in practice *and* on your real
+wallet's holdings:
 
 > ~~marked value 0.4928 ETH~~ · <mark>**pool would pay 0.4879 ETH**</mark>
 
@@ -31,46 +35,99 @@ The gap between those numbers is why people diamond-hand to zero.
 ## Receipts
 
 The fill engine is a zero-dependency bigint port of Uniswap v3's FullMath / TickMath /
-SqrtPriceMath / SwapMath plus the pool swap loop. It is validated **wei-for-wei against the
-chain's own QuoterV2** on live pools:
+SqrtPriceMath / SwapMath plus the pool swap loop, extended with v4's per-direction
+protocol fee. It is validated **wei-for-wei against the chain's own quoters** on live pools:
 
 ```
-pool 0x588b0785…02746 (fee 1%)  WETH/JUGGERNAUT  ticks known=145
+v3 · pool 0x588b0785…02746 (fee 1%)  WETH/JUGGERNAUT  ticks known=145
    0.01 ETH → local=2845846999690535243705 chain=2845846999690535243705 ✓ sqrtPrice ✓
-    0.1 ETH → local=28447966307267948715881 chain=28447966307267948715881 ✓ sqrtPrice ✓
       1 ETH → local=283433542895548274261200 chain=283433542895548274261200 ✓ sqrtPrice ✓
      10 ETH → local=2732276397268303020327805 chain=2732276397268303020327805 ✓ sqrtPrice ✓
 4 exact matches, 0 mismatches — including a 4-tick-crossing 10 ETH swap at ~400bps impact
+
+v4 · 12 sizes across 3 pools vs the on-chain v4 Quoter: 11 exact, 1 within 2.4e-21 (dust)
 ```
 
-Run it yourself: `pnpm --filter @paperhands/chain validate`
+Run it yourself: `pnpm --filter @paperhands/chain validate` (v3) · `validate:v4`.
 
-A finding from building this, verified independently by hand: an *instant* round trip in a
-single pool costs almost exactly 2×fee at any size — price impact cancels on reversal, plus
-a small convexity rebate. The danger was never the round trip. It's that a pool-moving buy
-**marks the bag at the pumped price** (`markInflation` in the engine: mark ÷ realizable,
-which hits 6× in tests) while everyone else's exit lands before yours.
+The real-execution path is proven the same way — `apps/web/scripts/sim-real-swap.mts`
+takes a live quote, builds the exact calldata a wallet would sign, and `eth_call`s +
+`eth_estimateGas` it against chain state (Universal Router v4 swaps: ~155–166k gas,
+hooked pools included).
 
 ## What's in the box
 
 ```
-packages/engine    the fill simulator — exact v2/v3 swap math, honesty metrics
-                   (realizable value, round-trip retention, markInflation).
-                   Pure bigint, zero dependencies, 33 unit tests.
-packages/chain     Robinhood Chain client: verified Uniswap deployment addresses,
-                   v3 pool state reader (slot0 + TickLens window), live QuoterV2
-                   cross-validation script.
-packages/indexer   activity-based discovery (chain-wide Swap logs, adaptive range
-                   bisection under the RPC's 10k-log cap), factory verification of
-                   every pool, 1-minute candles, trader attribution, SQLite.
-apps/web           the paper-ledger terminal (Next.js): screener, live charts, the
-                   order slip, portfolio, leaderboard.
+packages/engine    the fill simulator — exact v3/v4 swap math, honesty metrics
+                   (realizable value, round-trip retention, markInflation). Pure bigint.
+packages/chain     Robinhood Chain client: verified Uniswap deployment addresses (v3, v4,
+                   Universal Router, Permit2), pool state readers, quoter validation scripts.
+packages/indexer   activity-based discovery (chain-wide Swap logs under the RPC's 10k-log
+                   cap), factory verification, 1-minute candles, trader attribution,
+                   liquidity events, event-sourced replay, backups. SQLite.
+apps/web           the terminal (Next.js 15): screener, charts, impact curves, the order
+                   sheet (practice + real), portfolio (paper + wallet), LP Lab, Wire, alerts,
+                   hook classifier, public API.
 ```
 
-First discovery sweep found **1,138 pools / 901 tokens** in ~30 minutes of chain history,
-including two rugs in progress (−90%+ in 30m with drained depth) and a **counterfeit USDG
-pool** — which the factory-verification layer flagged automatically. Unverified pools show
-an `UNVERIFIED` stamp and cannot be traded.
+## Practice or Real — one switch, one engine
+
+**Practice** gives you 10 ETH of paper bankroll. Every order routes like an aggregator
+would — across every venue the token has (v3 fee tiers, v4 pools, 2-leg paths through
+USDG) — and fills on the best. Positions are marked at what the pool would pay.
+
+**Real** connects your own wallet (injected — Rabby, MetaMask, Robinhood's wallet) and
+turns the same quote into one signed transaction, non-custodially:
+
+| Route | Signs through | Notes |
+|---|---|---|
+| hookless v3 (1 or 2 legs) | `SwapRouter02` · `exactInputSingle` / `exactInput` + `unwrapWETH9` | ETH in / ETH out; sells need one ERC20 approval |
+| v4 (1 or 2 legs, hooked or not) | `UniversalRouter.execute` · `V4_SWAP` = `SWAP_EXACT_IN[_SINGLE]` + `SETTLE_ALL` + `TAKE_ALL` | native ETH in as `msg.value`; sells pull via Permit2 (ERC20→Permit2, then a 30-day Permit2 grant to the router) |
+
+`amountOutMinimum` is our exact quote less 1%. Routing in real mode only considers
+routes one transaction can sign, and keeps 2-leg routes inside one protocol version.
+Hooked pools are quoted by the chain's own v4 Quoter (so whatever the hook takes is in the
+number) — and the hook can still refuse the real swap, which your wallet's simulation shows.
+
+**LP for real** — the LP Lab's suggested range becomes a v3 `NonfungiblePositionManager`
+mint (ETH side sent native, refund in the same multicall). From the portfolio: **Collect**
+(collect → unwrap WETH → sweep token) and **Close** (decrease → collect → burn), each one
+signature. Out-of-range positions are flagged.
+
+Everything real-money is non-custodial by construction: we build calldata, your wallet
+signs, the Uniswap contracts settle to you.
+
+## Every venue, best fill
+
+Robinhood Chain is fragmented: a token can trade on several v3 fee tiers and v4 pools
+(native ETH or USDG quoted, half of them with launchpad hooks) at once. Every order is
+routed across all of them; hookless pools are quoted by our engine, hooked v4 pools by the
+chain's v4 Quoter. The order sheet shows the route it took.
+
+## Deep tech
+
+- **Impact curve** (every token page, `/api/v1/depth`): output, impact and price move at
+  0.01–25 ETH — depth as it should always have been defined. "A 25 ETH buy costs 17.7% of
+  impact and moves the price +44.6%."
+- **Hook classifier** (hooked pool pages): a v4 hook's permissions are literally its
+  address bits. We decode them into capabilities and a risk tier — *takes a cut of swaps*,
+  *can block LP withdrawals*, *sets its own fee per swap* — plus adoption (pools, swaps).
+- **LP strategy engine**: realized 1-minute volatility → 24h σ → tight/balanced/wide
+  ranges, backtested on demand through the pool's recorded swaps (parallel-universe honest:
+  your position is added to the pool and pays its own impact).
+- **Alerts** (Wire, `/api/v1/alerts`): liquidity pulled (≥50% of active depth in one tx),
+  dumps (−50% in 3h with real volume), volume surges (≥4× the previous half hour). Straight
+  from the ledger.
+- **Event-sourced replay**: any pool's full state at any past block (live snapshot,
+  reverse-patched by Mint/Burn or ModifyLiquidity deltas), self-validated by re-executing
+  recorded swaps: `USDG/WETH 1,996 swaps — amountOut exact 98.4%`.
+
+## Public API (v1)
+
+`/api/v1/quote` · `/api/v1/depth` · `/api/v1/pools` · `/api/v1/replay` · `/api/v1/lp` ·
+`/api/v1/alerts` — free, no key, 60 req/min per IP. `/docs` has examples. `real=1` on
+quote returns only wallet-signable routes with per-leg execution details (v4 pool keys
+included), so bots can build the same calldata we do.
 
 ## Run it
 
@@ -84,14 +141,15 @@ pnpm --filter @paperhands/indexer dev
 pnpm --filter @paperhands/web dev     # → http://localhost:3000
 
 # tests & proofs
-pnpm test                             # engine unit tests
-pnpm --filter @paperhands/chain validate   # engine vs on-chain QuoterV2
+pnpm test                                   # engine unit tests
+pnpm --filter @paperhands/chain validate    # engine vs on-chain QuoterV2
+pnpm --filter @paperhands/chain validate:v4 # engine vs on-chain v4 Quoter
+pnpm --filter @paperhands/web exec tsx scripts/sim-real-swap.mts   # real calldata vs chain
 ```
 
-No wallet, no keys, no funds. The only network dependency is the public RPC
-(`rpc.mainnet.chain.robinhood.com`). Env overrides: `PAPERHANDS_DB` (SQLite path) and
-`PAPERHANDS_RPC` (use a dedicated Alchemy/QuickNode endpoint in production — the public
-RPC rate-limits).
+Env: `PAPERHANDS_DB` (SQLite path), `PAPERHANDS_RPC` (use a dedicated Alchemy/QuickNode
+endpoint in production — the public RPC rate-limits and serves only ~3k blocks of pinned
+state), `PAPERHANDS_SECRET` (cookie HMAC), `NEXT_PUBLIC_SITE_URL`.
 
 ## Deploy
 
@@ -102,107 +160,41 @@ unbroken event coverage). The repo ships a `Dockerfile` + `railway.json`:
 railway up          # from the repo root; add a volume mounted at /data
 ```
 
-Set `PAPERHANDS_RPC` to a dedicated endpoint. The web terminal serves on `$PORT`, the
-indexer discovers, watches, attributes, and mirrors tails in the same container, and
-the ledger lives on the volume. (Vercel + Postgres split is the scale-up path — the
-SQLite one-box is deliberate for v0.)
-
-## Every venue, best fill
-
-Robinhood Chain is fragmented: a token can trade on several v3 fee tiers, v4 pools
-(native ETH or USDG quoted, half of them with launchpad hooks), all at once. Every paper
-order is **routed like an aggregator would**: the engine quotes every venue the token has
-— direct ETH pools and 2-leg paths through USDG — and fills on the best. Hookless pools
-(v3 and v4) are quoted by our engine, which is validated wei-for-wei against the chain's
-v3 *and* v4 quoters (v4's per-direction protocol fee included). Hooked v4 pools are
-quoted by the chain's own v4 Quoter, so hook logic is exact — at the cost of no
-post-trade price preview. The order slip shows the route it took.
-
-## How a fill actually works here
-
-1. Ticket asks `/api/quote` → server reads **live** `slot0`, in-range liquidity, and a
-   ±8-word TickLens window from the pool (10s cache).
-2. The engine walks the swap tick-by-tick — `computeSwapStep`, liquidity-net crossings,
-   fee accounting — identically to `UniswapV3Pool.swap`.
-3. You see: spot, your fill, price impact (fee separated), what you'd get **selling it
-   right back**, and how much a PnL screen would overstate your bag.
-4. Orders the pool couldn't absorb are rejected, not pretend-filled. Positions are scored
-   by simulated full exit every time you look at them.
-
-What it deliberately does not model (yet): your trade moving the market for *others*,
-MEV/sandwiches, and gas (~negligible on the L2 for sizes that matter here).
-
 ## Coverage
 
 - **Uniswap v3** (TickLens state) and **Uniswap v4** (StateView + singleton PoolManager
   stream — v4 is the chain's busiest venue). v4 amounts are normalized to v3's sign
-  convention at ingest so every downstream consumer stays uniform.
-- Quotes: **WETH, native ETH, and USDG** — dollar-quoted pools (where tokenized stocks
-  trade) are fully indexed/charted; the ETH paper bankroll trades ETH-quoted pools, USD
-  pools are view-only until the ledger grows a currency dimension.
-- **Hook pools are view-only by principle**: hooks can rewrite fills arbitrarily, so
-  honest simulation is impossible — we chart them and say so, rather than guess.
+  convention at ingest.
+- Quotes in **WETH, native ETH, and USDG**. The paper ledger stays ETH-denominated; USDG
+  pools trade through 2-leg routing.
+- Hooked pools trade (quoted on-chain); LP backtests and LP minting cover hookless v3
+  ETH pools today. v4 LP (PositionManager) is next.
 
 ## Durability
 
-- Identities are HMAC-signed cookies (set `PAPERHANDS_SECRET`); every account has a
-  portable **account key** (portfolio page) that survives cleared cookies and devices.
-- SQLite online backups every 6h — local rotation plus optional Cloudflare R2
-  (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`).
-- Rolling retention (default 7 days of swaps/liquidity, `PAPERHANDS_RETAIN_DAYS`);
-  candles are kept forever. A long indexer outage self-heals: the cursor jumps, the
-  replay floor moves with it, and the gap is recorded instead of corrupting history.
+- Identities are HMAC-signed cookies; every account has a portable **account key** that
+  survives cleared cookies and devices.
+- SQLite online backups every 6h — local rotation plus optional Cloudflare R2.
+- Rolling retention (default 7 days of swaps/liquidity); candles are kept forever. A long
+  indexer outage self-heals: the cursor jumps, the replay floor moves with it.
 
 ## The Wire — wallet intelligence and tailing
 
 `/wire` ranks real attributed wallets by **ETH actually taken out of pools** (not marked
-bags), over the tracked window. Every wallet gets a page (`/w/0x…`) with per-pool flows —
-what they bought, what they banked, what they're still holding. And any wallet can be
-**tailed**: set a size, and the indexer mirrors their swaps into your paper account through
-the same honest engine — their buy triggers your fixed-size buy, their sell exits your
-tailed position. You eat *your* slippage at *your* size, which is exactly the lesson:
-copying a whale's entries is not copying their exits.
-
-## The Lab — time travel, proven against the chain
-
-The indexer stores every Swap and every Mint/Burn, so any pool's **full state at any
-past block** can be reconstructed (live snapshot, reverse-patched by liquidity deltas,
-anchored on recorded in-range liquidity). Replays then re-execute recorded swap inputs
-through the engine — which makes the whole thing self-validating: simulated outputs must
-reproduce what actually happened on-chain. Measured on live pools:
-
-```
-USDG/WETH   1,996 swaps,  6 liq events — amountOut exact 98.4%
-JUGGERNAUT    239 swaps, 52 liq events — amountOut exact 99.2%
-(residual mismatches are wei-level rounding on trades that executed exact-output)
-```
-
-Two counterfactual instruments ship on top, both **parallel-universe honest** (your
-virtual position or orders are added to the pool, so you pay your own impact and earn
-only your own share):
-
-- **LP Lab** (token pages) — would providing liquidity have paid? Pick a range and
-  deposit; every recorded swap re-executes through your position; you get fees earned,
-  impermanent loss, net-vs-hodl and the run-rate. First live run: 1 ETH ±30% on
-  JUGGERNAUT earned 61bps in 1.5h of sideways chop (~3,500% APR) — and the same tool
-  will happily tell you when fees did NOT cover the bleed.
-- **Replay Lab** (wallet pages) — would tailing this wallet have worked *at your size*?
-  Mirrors its recorded entries/exits through history; leftovers exit realizable. First
-  live run: a whale up +2.7 ETH real — copying it at 0.25 ETH/buy lost money.
-
-Commands: `main.ts liq-backfill` (resumable) · `main.ts replay-validate [pool]`.
-The watch loop must run continuously — reconstruction needs unbroken event coverage,
-and the replay floor advances if it gaps.
+bags). Every wallet gets a page (`/w/0x…`) with per-pool flows, and any wallet can be
+**tailed** into your paper account through the same honest engine — you eat *your*
+slippage at *your* size. The **Replay Lab** answers "would tailing this wallet have worked
+at my size?" before you do.
 
 ## Roadmap
 
-- **Tail replay** — run a wallet's past month through your bankroll size before tailing it.
-- **Replay mode** — enter at any historical candle, exit through reconstructed liquidity.
-- **Seasons** — 10 ETH, four weeks, wall of fame/shame.
-- USDG-quoted pools (needs a quote-currency dimension on the ledger first), v2 pairs,
-  v4 hooks as liquidity migrates.
+- v4 LP (mint / collect / close through the v4 PositionManager), including hookless
+  launchpad graduates.
+- Validation badges on pool pages from a scheduled replay-validate.
+- Seasons — 10 ETH, four weeks, wall of fame/shame.
 
 ## Disclaimers
 
-Simulated trading with fantasy balances. Not affiliated with Robinhood. Nothing here is
-financial advice, and none of it is money.
+Practice balances are fantasy and not money. Real mode signs transactions from your own
+wallet to public Uniswap contracts; you are responsible for them. Not affiliated with
+Robinhood or Uniswap. Nothing here is financial advice.

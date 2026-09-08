@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import { bump } from './counters'
 
 /** Fixed-window per-IP limiter for the public API. In-memory: one box, fine for v1. */
 const buckets = new Map<string, { count: number; resetAt: number }>()
@@ -15,7 +16,10 @@ export function rateLimit(req: NextRequest, limitPerMinute = 60): { ok: boolean;
   if (buckets.size > 10_000) {
     for (const [k, v] of buckets) if (v.resetAt <= now) buckets.delete(k)
   }
-  return { ok: b.count <= limitPerMinute, remaining: Math.max(0, limitPerMinute - b.count), resetAt: b.resetAt }
+  const ok = b.count <= limitPerMinute
+  // Every public endpoint passes through here, so this is where usage is counted.
+  if (ok) bump(req.nextUrl.pathname.split('/').filter(Boolean).join('.'))
+  return { ok, remaining: Math.max(0, limitPerMinute - b.count), resetAt: b.resetAt }
 }
 
 export function limitHeaders(r: { remaining: number; resetAt: number }): Record<string, string> {

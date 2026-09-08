@@ -15,7 +15,17 @@ const Q96 = 79228162514264337593543950336
 // ~14 blocks/s on Robinhood Chain: two hours of blocks.
 const PULL_WINDOW_BLOCKS = 100_000
 
+const CACHE_MS = 60_000
+const MAX_LIMIT = 100
+let cached: { at: number; alerts: Alert[] } | null = null
+
+/** Cached for a minute: alerts move on a minutes timescale and the queries are not free. */
 export function marketAlerts(limit = 30): Alert[] {
+  if (!cached || Date.now() - cached.at > CACHE_MS) cached = { at: Date.now(), alerts: computeAlerts(MAX_LIMIT) }
+  return cached.alerts.slice(0, Math.min(limit, MAX_LIMIT))
+}
+
+function computeAlerts(limit: number): Alert[] {
   const now = Math.floor(Date.now() / 1000)
   const out: Alert[] = []
 
@@ -60,9 +70,16 @@ export function marketAlerts(limit = 30): Alert[] {
   }
 
   // Chain head estimate from the newest recorded swap: liquidity events can
-  // run ahead of the swap cursor, so the cursor itself is not a clock.
-  const ref = db.prepare(`SELECT MAX(block) AS b, MAX(ts) AS t FROM swaps`).get() as { b: number | null; t: number | null }
-  const cursor = ref.b && ref.t ? ref.b + Math.round(Math.max(0, now - ref.t) * 14) : 0
+  // run ahead of the swap cursor, so the cursor itself is not a clock. Looked
+  // up through the most recently active pool so it rides the (pool, block) index.
+  const ref = db
+    .prepare(
+      `SELECT block AS b, ts AS t FROM swaps
+       WHERE pool = (SELECT address FROM pools WHERE last_swap_block IS NOT NULL ORDER BY last_swap_block DESC LIMIT 1)
+       ORDER BY block DESC LIMIT 1`,
+    )
+    .get() as { b: number; t: number } | undefined
+  const cursor = ref ? ref.b + Math.round(Math.max(0, now - ref.t) * 14) : 0
   if (cursor > 0) {
     const pulls = db
       .prepare(

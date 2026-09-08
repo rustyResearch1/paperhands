@@ -106,12 +106,12 @@ export default async function Markets({
                   <th>Token</th>
                   <th>Price</th>
                   <th>Traction</th>
-                  <th>Vol 24h</th>
-                  <th>5m</th>
+                  <th className="hidden md:table-cell">Vol 24h</th>
+                  <th className="hidden md:table-cell">5m</th>
                   <th>30m</th>
-                  <th>Trades</th>
-                  <th>Depth</th>
-                  <th>Pool</th>
+                  <th className="hidden md:table-cell">Trades</th>
+                  <th className="hidden md:table-cell">Depth</th>
+                  <th className="hidden md:table-cell">Pool</th>
                 </tr>
               </thead>
               <tbody>
@@ -127,7 +127,7 @@ export default async function Markets({
                           </span>
                           <span className="min-w-0">
                             <span className="block font-semibold leading-tight">{r.baseSymbol}</span>
-                            <span className="block max-w-44 truncate text-[12px] text-muted">
+                            <span className="block max-w-28 truncate text-[12px] text-muted md:max-w-44">
                               {r.baseName}
                               {r.poolCount > 1 ? ` · ${r.poolCount} pools` : ''}
                             </span>
@@ -138,16 +138,16 @@ export default async function Markets({
                       <td>
                         <Traction vol30={r.vol30} vol30prev={r.vol30prev} />
                       </td>
-                      <td>{money(r.vol24, r.quote_symbol)}</td>
-                      <td>
+                      <td className="hidden md:table-cell">{money(r.vol24, r.quote_symbol)}</td>
+                      <td className="hidden md:table-cell">
                         <Change value={pctChange(r.lastClose, r.close5m)} />
                       </td>
                       <td>
                         <Change value={pctChange(r.lastClose, r.close30m)} />
                       </td>
-                      <td className="text-muted">{r.trades24.toLocaleString('en-US')}</td>
-                      <td className={depthEth < 5 ? 'text-down' : depthEth < 25 ? 'text-muted' : ''}>{money(depthQuote, r.quote_symbol)}</td>
-                      <td>
+                      <td className="hidden text-muted md:table-cell">{r.trades24.toLocaleString('en-US')}</td>
+                      <td className={`hidden md:table-cell ${depthEth < 5 ? 'text-down' : depthEth < 25 ? 'text-muted' : ''}`}>{money(depthQuote, r.quote_symbol)}</td>
+                      <td className="hidden md:table-cell">
                         <span className="pill">
                           {r.address.length === 66 ? 'v4' : 'v3'} · {(r.fee / 10_000).toFixed(2)}%
                         </span>

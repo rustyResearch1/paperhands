@@ -8,7 +8,7 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 - [x] Ambient three.js background: constant-product contour field, reduced-motion safe
 - [x] App shell: nav, Practice/Real mode switch, wallet button (injected connector)
 - [x] Restyle: Markets (screener), Trade (token page), Wire, Wallet page, Portfolio, Leaderboard
-- [ ] Mobile layout pass (bottom tab nav in; tables scroll; verify on a phone)
+- [x] Mobile layout pass: no page scrolls horizontally at 375px; Markets/Wire/Leaderboard hide secondary columns on phones
 
 ## Stage B — Wallet connect (read-only)
 - [x] wagmi + injected connector, chain config for 4663
@@ -45,5 +45,6 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 
 ## Stage G — Prod hardening
 - [x] Error boundary, not-found, loading skeleton, OG/Twitter metadata
-- [ ] Analytics counters (replay runs, API hits)
-- [ ] README/docs refresh, deploy, smoke test on production
+- [x] Usage counters (API hits per endpoint, replay + LP backtest runs) shown on /docs
+- [x] README/docs refresh
+- [ ] Deploy + smoke test on production (home, token page, /api/v1/alerts, /docs)

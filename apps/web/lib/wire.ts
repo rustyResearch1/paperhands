@@ -23,7 +23,20 @@ export interface WireRow {
   openMarkEth: number
 }
 
+const wireCache = new Map<string, { at: number; rows: WireRow[] }>()
+const WIRE_CACHE_MS = 60_000
+
+/** Ranked wallets, cached for a minute — the ranking scans every attributed swap. */
 export function topTraders(limit = 50, minTrades = 5): WireRow[] {
+  const key = `${limit}:${minTrades}`
+  const hit = wireCache.get(key)
+  if (hit && Date.now() - hit.at < WIRE_CACHE_MS) return hit.rows
+  const rows = computeTopTraders(limit, minTrades)
+  wireCache.set(key, { at: Date.now(), rows })
+  return rows
+}
+
+function computeTopTraders(limit: number, minTrades: number): WireRow[] {
   const rows = db
     .prepare(
       `SELECT trader, COUNT(*) AS trades, SUM(eth > 0) AS buys, SUM(eth < 0) AS sells,
