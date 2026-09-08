@@ -197,8 +197,8 @@ export default function LiveTape() {
                   <th>Side</th>
                   <th>Token</th>
                   <th>Size</th>
-                  <th className="hidden md:table-cell">Qty</th>
-                  <th className="hidden xl:table-cell">Price</th>
+                  <th className="hidden xl:table-cell">Qty</th>
+                  <th className="hidden 2xl:table-cell">Price</th>
                   <th>Wallet</th>
                   <th className="hidden md:table-cell">Tx</th>
                 </tr>
@@ -219,8 +219,8 @@ export default function LiveTape() {
                       {f.usd !== null ? formatUsd(f.usd) : `${f.quote.toFixed(3)} ${f.quoteSymbol}`}
                       {f.usd !== null && <span className="ml-1 text-[11px] text-faint">{f.quote.toFixed(f.quoteSymbol === 'ETH' ? 3 : 0)} {f.quoteSymbol}</span>}
                     </td>
-                    <td className="hidden text-muted md:table-cell">{fmtQty(f.qty)}</td>
-                    <td className="hidden text-muted xl:table-cell">{f.price !== null ? `${formatPrice(f.price)} ETH` : '—'}</td>
+                    <td className="hidden text-muted xl:table-cell">{fmtQty(f.qty)}</td>
+                    <td className="hidden text-muted 2xl:table-cell">{f.price !== null ? `${formatPrice(f.price)} ETH` : '—'}</td>
                     <td>
                       {f.trader ? (
                         <Link href={`/w/${f.trader}`} className="hover:text-pen">
