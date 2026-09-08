@@ -112,8 +112,8 @@ real "sold right back" quote so a bag is never worth more than the venue would p
 | Chain | Quotes | Real execution | LP |
 |---|---|---|---|
 | Robinhood Chain | our exact engine, every v3/v4 venue | SwapRouter02 / Universal Router | v3 NFPM mint · collect · close, backtests |
-| Solana | Jupiter across every Solana DEX + reverse quote | Jupiter transaction signed in Phantom | screener: Orca Whirlpools + Meteora DLMM |
-| BNB Chain | PancakeSwap v3 through our engine (it's a Uniswap v3 fork) **vs** KyberSwap — best fill wins, runner-up shown | PancakeSwap SmartRouter or KyberSwap calldata, signed by your wallet | screener: PancakeSwap v3 |
+| Solana | Jupiter across every Solana DEX + reverse quote | Jupiter transaction signed in Phantom | Orca Whirlpools: σ-ranged open / close built for your pubkey, signed in Phantom; screener also covers Meteora DLMM |
+| BNB Chain | PancakeSwap v3 through our engine (it's a Uniswap v3 fork) **vs** KyberSwap — best fill wins, runner-up shown | PancakeSwap SmartRouter or KyberSwap calldata, signed by your wallet | PancakeSwap v3: σ-ranged mint · collect · close through Pancake's position manager |
 
 - `/x` — **best execution across chains**: the same $100–$10k into USDC, USDT, ETH, BTC or SOL on
   every chain: value received, cost in bps, impact, gas, and who quoted it.
