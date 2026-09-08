@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import BscLpCard from '@/components/BscLpCard'
+import SolLpCard from '@/components/SolLpCard'
 import XChart from '@/components/XChart'
 import XTicket from '@/components/XTicket'
 import { formatPct, formatUsd } from '@/lib/format'
@@ -119,6 +120,11 @@ export default async function XTokenPage({ params }: { params: Promise<{ chain: 
           {chain === 'bsc' && (
             <div className="rise rise-3">
               <BscLpCard token={meta.address} symbol={meta.symbol} decimals={meta.decimals} />
+            </div>
+          )}
+          {chain === 'sol' && (
+            <div className="rise rise-3">
+              <SolLpCard token={meta.address} symbol={meta.symbol} decimals={meta.decimals} />
             </div>
           )}
           <Link href={`/x/${chain}`} className="block text-[13px] text-pen hover:underline">

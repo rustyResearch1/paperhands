@@ -69,8 +69,10 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] I1 LP screener `/lp` + `/api/v1/lp/pools`: RH (ledger) · Orca + Meteora (Solana) · PancakeSwap v3 (BSC); fee yield/day, APR,
       vol/TVL, realized σ (our candles / GeckoTerminal minute OHLCV), fee-to-vol score; chain filter
 - [x] I2 Range suggester on every screener row (1σ / 2σ / 4σ from realized σ)
-- [ ] I3 LP execution: BSC PancakeSwap v3 NFPM mint / collect / close (our builders, Pancake addresses);
-      Solana Orca Whirlpools open/close position (tx built server-side for the user's pubkey, signed in Phantom); Meteora DLMM after
+- [x] I3a BSC LP execution: PancakeSwap v3 WBNB pools (live depth), σ ranges, exact mint plan, mint / collect / close through
+      Pancake's position manager with our builders (`/api/lp/bsc`, LP card on BSC token pages; positions listed per wallet)
+- [ ] I3b Solana LP execution: Orca Whirlpools open / close position (tx built server-side for the user's pubkey, signed in Phantom);
+      Meteora DLMM after
 - [ ] I4 LP backtest beyond RH: volume-share backtest from minute OHLCV + current in-range liquidity (labelled approximate)
 
 ## User-side (needs your accounts / wallet)

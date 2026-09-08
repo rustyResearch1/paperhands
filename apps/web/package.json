@@ -11,12 +11,17 @@
     "test": "echo 'web: no unit tests yet'"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "0.32.1",
+    "@orca-so/common-sdk": "^0.7.1",
+    "@orca-so/whirlpools-sdk": "^0.22.0",
     "@paperhands/chain": "workspace:*",
     "@paperhands/engine": "workspace:*",
     "@paperhands/indexer": "workspace:*",
+    "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.102.8",
     "better-sqlite3": "^11.7.0",
+    "decimal.js": "^10.6.0",
     "lightweight-charts": "^4.2.2",
     "next": "^15.1.6",
     "react": "^19.0.0",
