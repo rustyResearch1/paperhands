@@ -25,7 +25,7 @@ export function startWarmup() {
         // a venue being down must not stop the loop
       }
     }
-    console.log(`warm: lp screen + best-execution tables refreshed in ${Date.now() - t0}ms`)
+    console.log(`warm v2: lp screen + best-execution tables refreshed in ${Date.now() - t0}ms`)
   }
   const t = setTimeout(() => {
     run()

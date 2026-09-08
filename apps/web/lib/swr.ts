@@ -10,7 +10,10 @@ interface Entry {
   inflight: Promise<unknown> | null
 }
 
-const entries = new Map<string, Entry>()
+// Held on globalThis: Next bundles instrumentation and page routes separately, so a plain
+// module-level map would give the boot warm-up its own copy that no page ever reads.
+const g = globalThis as { __phswr?: Map<string, Entry> }
+const entries = (g.__phswr ??= new Map<string, Entry>())
 
 export function swr<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   let e = entries.get(key)
