@@ -78,6 +78,12 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
       minute candles × your share of current in-range liquidity, IL from the price path, time in range, fee APR run-rate
 - [ ] I5 Meteora DLMM execution (bin positions) · Raydium CLMM · BSC USDT-quoted LP deposits
 
+## Stage L — Paper-and-ink design (ourolayer.com as the reference)
+- [x] Tokens: parchment `#eeebe5` / ink `#1b1710` / bronze accent / deep green up / brick down (warm dark variant too),
+      Source Serif 4 headlines, Public Sans body, JetBrains Mono numerals + labels, 8px cards, 6px controls, no glows
+- [x] Charts, depth curve and ambient shader read the tokens; wordmark in serif
+- [ ] Editorial touches: numbered section eyebrows (01 · Markets…), serif pull-quotes on Learn pages, a proper OG image
+
 ## Stage K — Explorer + trencher ergonomics
 - [x] Copy-CA pills on every token page and market row (Robinhood, Solana, BSC) and on wallet pages
 - [x] Robinhood wallet explorer (`/w/<address>`): realized P&L with pro-rata cost basis, win rate, volume, per-token table,
