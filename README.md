@@ -82,7 +82,13 @@ turns the same quote into one signed transaction, non-custodially:
 | Route | Signs through | Notes |
 |---|---|---|
 | hookless v3 (1 or 2 legs) | `SwapRouter02` · `exactInputSingle` / `exactInput` + `unwrapWETH9` | ETH in / ETH out; sells need one ERC20 approval |
-| v4 (1 or 2 legs, hooked or not) | `UniversalRouter.execute` · `V4_SWAP` = `SWAP_EXACT_IN[_SINGLE]` + `SETTLE_ALL` + `TAKE_ALL` | native ETH in as `msg.value`; sells pull via Permit2 (ERC20→Permit2, then a 30-day Permit2 grant to the router) |
+| v4 (1 or 2 legs, hooked or not) | `UniversalRouter.execute` · `V4_SWAP` = chained `SWAP_EXACT_IN_SINGLE` (later hops spend the open delta) + `SETTLE_ALL` + `TAKE_ALL` | native ETH in as `msg.value`; sells pull via Permit2 (ERC20→Permit2, then a 30-day Permit2 grant to the router) |
+
+A deployment detail worth knowing: this chain's Universal Router was built from a
+v4-periphery revision whose `ExactInputSingleParams` still carries `sqrtPriceLimitX96`.
+Encode the final-release five-field struct and every non-native pool reverts with empty
+data (the router reads a bogus hookData offset). We found it by decoding live router
+transactions; `sim-real-swap.mts` guards against regressions.
 
 `amountOutMinimum` is our exact quote less 1%. Routing in real mode only considers
 routes one transaction can sign, and keeps 2-leg routes inside one protocol version.

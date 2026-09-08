@@ -11,13 +11,15 @@ interface Props {
   baseDecimals: number
   balanceWei: string
   positionQty: string
+  /** Issuer-restricted tokenized stock: real swaps can revert for ineligible wallets. */
+  stock?: boolean
 }
 
 /** One order sheet, two settlement layers: the paper ledger or the user's wallet. */
 export default function TradeTicket(props: Props) {
   const { mode } = useMode()
   if (mode === 'real') {
-    return <RealTicket pool={props.pool} baseAddress={props.baseAddress} baseSymbol={props.baseSymbol} baseDecimals={props.baseDecimals} />
+    return <RealTicket pool={props.pool} baseAddress={props.baseAddress} baseSymbol={props.baseSymbol} baseDecimals={props.baseDecimals} stock={props.stock} />
   }
   return (
     <PracticeTicket

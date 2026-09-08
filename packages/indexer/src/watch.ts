@@ -7,6 +7,7 @@ import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, setMeta } from './db.js'
 import { BlockClock } from './timestamps.js'
+import { refreshWireRank } from './wire.js'
 
 interface PoolCache {
   baseIsToken0: number | null
@@ -246,6 +247,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
   }
 
   let lastBackup = Number(getMeta(db, 'last_backup_ts') ?? 0)
+  let lastWire = Number(getMeta(db, 'wire_rank_ts') ?? 0)
   // Catch-up chunk adapts to what the RPC will actually serve: a failed
   // tick halves it, a clean tick grows it back — a wedged loop that never
   // advances the cursor is worse than a slow one.
@@ -284,6 +286,13 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
           setMeta(db, 'last_backup_ts', String(nowSec))
           const { runBackup } = await import('./backup.js')
           runBackup(db, db.name).catch((err) => console.error('backup failed:', (err as Error).message))
+        }
+        // The Wire ranking is too heavy for a web request; refresh it here.
+        if (nowSec - lastWire > 10 * 60) {
+          lastWire = nowSec
+          const t0 = Date.now()
+          const n = refreshWireRank(db)
+          console.log(`watch: wire rank refreshed (${n} wallets, ${Date.now() - t0}ms)`)
         }
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())

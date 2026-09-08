@@ -120,9 +120,10 @@ export function buildSwap(opts: { side: 'buy' | 'sell'; legs: ExecLeg[]; amountI
 const CMD_V4_SWAP = 0x10
 /** v4-periphery Actions. */
 const ACT_SWAP_EXACT_IN_SINGLE = 0x06
-const ACT_SWAP_EXACT_IN = 0x07
 const ACT_SETTLE_ALL = 0x0c
 const ACT_TAKE_ALL = 0x0f
+/** ActionConstants.OPEN_DELTA: "spend whatever credit this currency has". */
+const OPEN_DELTA = 0n
 
 const POOL_KEY = {
   type: 'tuple',
@@ -136,6 +137,13 @@ const POOL_KEY = {
   ],
 } as const
 
+/**
+ * This chain's Universal Router was built from a v4-periphery revision whose
+ * ExactInputSingleParams still carries `sqrtPriceLimitX96` (0 = no limit)
+ * between amountOutMinimum and hookData. Confirmed by decoding live router
+ * transactions; the five-field layout of the final release makes the router
+ * read a bogus hookData offset and revert on every non-native pool.
+ */
 const EXACT_IN_SINGLE_PARAMS = [
   {
     type: 'tuple',
@@ -145,30 +153,8 @@ const EXACT_IN_SINGLE_PARAMS = [
       { type: 'bool', name: 'zeroForOne' },
       { type: 'uint128', name: 'amountIn' },
       { type: 'uint128', name: 'amountOutMinimum' },
+      { type: 'uint160', name: 'sqrtPriceLimitX96' },
       { type: 'bytes', name: 'hookData' },
-    ],
-  },
-] as const
-
-const EXACT_IN_PARAMS = [
-  {
-    type: 'tuple',
-    name: 'params',
-    components: [
-      { type: 'address', name: 'currencyIn' },
-      {
-        type: 'tuple[]',
-        name: 'path',
-        components: [
-          { type: 'address', name: 'intermediateCurrency' },
-          { type: 'uint24', name: 'fee' },
-          { type: 'int24', name: 'tickSpacing' },
-          { type: 'address', name: 'hooks' },
-          { type: 'bytes', name: 'hookData' },
-        ],
-      },
-      { type: 'uint128', name: 'amountIn' },
-      { type: 'uint128', name: 'amountOutMinimum' },
     ],
   },
 ] as const
@@ -187,10 +173,12 @@ export function buildV4Swap(opts: { legs: ExecLeg[]; amountIn: bigint; minOut: b
   const currencyIn = legs[0]!.tokenIn as Address
   const currencyOut = legs[legs.length - 1]!.tokenOut as Address
 
-  let swapAction: number
-  let swapParams: Hex
-  if (legs.length === 1) {
-    const l = legs[0]!
+  // Multi-leg routes are chained single-hop swaps: the first spends amountIn,
+  // each later hop spends its input currency's open delta (OPEN_DELTA = 0),
+  // and only the last hop carries the output floor. This is what the
+  // Universal Router's own multi-hop does internally, without depending on
+  // this deployment's ExactInputParams layout.
+  const swapParams: Hex[] = legs.map((l, i) => {
     const zeroForOne = lower(l.tokenIn) < lower(l.tokenOut)
     const poolKey = {
       currency0: (zeroForOne ? l.tokenIn : l.tokenOut) as Address,
@@ -199,29 +187,19 @@ export function buildV4Swap(opts: { legs: ExecLeg[]; amountIn: bigint; minOut: b
       tickSpacing: l.tickSpacing!,
       hooks: l.hooks as Address,
     }
-    swapAction = ACT_SWAP_EXACT_IN_SINGLE
-    swapParams = encodeAbiParameters(EXACT_IN_SINGLE_PARAMS, [{ poolKey, zeroForOne, amountIn, amountOutMinimum: minOut, hookData: '0x' }])
-  } else {
-    swapAction = ACT_SWAP_EXACT_IN
-    swapParams = encodeAbiParameters(EXACT_IN_PARAMS, [
-      {
-        currencyIn,
-        path: legs.map((l) => ({
-          intermediateCurrency: l.tokenOut as Address,
-          fee: l.fee,
-          tickSpacing: l.tickSpacing!,
-          hooks: l.hooks as Address,
-          hookData: '0x' as Hex,
-        })),
-        amountIn,
-        amountOutMinimum: minOut,
-      },
+    const last = i === legs.length - 1
+    return encodeAbiParameters(EXACT_IN_SINGLE_PARAMS, [
+      { poolKey, zeroForOne, amountIn: i === 0 ? amountIn : OPEN_DELTA, amountOutMinimum: last ? minOut : 0n, sqrtPriceLimitX96: 0n, hookData: '0x' },
     ])
-  }
+  })
 
-  const actions = encodePacked(['uint8', 'uint8', 'uint8'], [swapAction, ACT_SETTLE_ALL, ACT_TAKE_ALL])
+  const actionList = [...legs.map(() => ACT_SWAP_EXACT_IN_SINGLE), ACT_SETTLE_ALL, ACT_TAKE_ALL]
+  const actions = encodePacked(
+    actionList.map(() => 'uint8'),
+    actionList,
+  )
   const params: Hex[] = [
-    swapParams,
+    ...swapParams,
     encodeAbiParameters(CURRENCY_AMOUNT, [currencyIn, amountIn]),
     encodeAbiParameters(CURRENCY_AMOUNT, [currencyOut, minOut]),
   ]

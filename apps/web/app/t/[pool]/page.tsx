@@ -12,6 +12,7 @@ import { ethUsdRate } from '@/lib/usd'
 import { poolMeta, ticketQuote } from '@/lib/quote'
 import { quoteDepth } from '@/lib/screener'
 import { getOrCreateUser } from '@/lib/session'
+import { isTokenizedStock } from '@/lib/stock'
 import { EXPLORER_URL } from '@paperhands/chain'
 
 export const dynamic = 'force-dynamic'
@@ -208,6 +209,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
                   baseDecimals={meta.baseDecimals}
                   balanceWei={user.balance_quote}
                   positionQty={position?.qty ?? '0'}
+                  stock={isTokenizedStock(meta.baseName)}
                 />
               </div>
               <div className="rise rise-3">

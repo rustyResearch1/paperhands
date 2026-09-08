@@ -18,13 +18,17 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 ## Stage C — Real execution (non-custodial, user signs)
 - [x] Approvals flow (ERC20 → router)
 - [x] Swap: v3 exactInputSingle / exactInput (2-leg via USDG) with our exact minOut
-- [x] Swap: v4 via Universal Router (V4_SWAP: SWAP_EXACT_IN_SINGLE / SWAP_EXACT_IN + SETTLE_ALL + TAKE_ALL), hooked pools included;
+- [x] Swap: v4 via Universal Router (V4_SWAP: chained SWAP_EXACT_IN_SINGLE + SETTLE_ALL + TAKE_ALL), hooked pools included;
       Permit2 two-step allowance for sells; wallet-signable routing keeps 2-leg routes inside one protocol version.
       Verified by eth_call + estimateGas of the exact calldata (scripts/sim-real-swap.mts).
+      Gotcha found and fixed: this router's ExactInputSingleParams has six fields (sqrtPriceLimitX96) — five-field
+      encoding reverts empty on every non-native pool.
 - [x] LP mint: v3 NFPM.mint from strategy range
 - [x] LP collect (unwrap WETH → ETH, sweep token) and close (decrease + collect + burn) from the portfolio
 - [x] Honest pre-trade sheet: fill, impact, price move, instant-exit, route, minOut
-- [ ] v4 LP (PositionManager 0x58daec31…) — mint/collect/close for hookless v4 pools
+- [ ] v4 LP (PositionManager 0x58daec31…) — mint/collect/close for hookless v4 pools.
+      Blocker for the read side: v4 PositionManager is ERC721 without enumeration, so listing a wallet's
+      positions needs the indexer to track its Transfer events (add to the watch loop first).
 
 ## Stage D — LP strategy engine
 - [x] Realized-vol range suggester (24h σ → tight/balanced/wide) + backtest on demand

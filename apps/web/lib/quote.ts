@@ -22,6 +22,7 @@ export interface PoolMeta {
   hooked: boolean
   hooks: string | null
   baseSymbol: string
+  baseName: string
   baseDecimals: number
   baseAddress: string
   quoteDecimals: number
@@ -34,7 +35,7 @@ export function poolMeta(pool: string): PoolMeta | undefined {
     .prepare(
       `SELECT p.address, p.base_is_token0, p.factory_verified, p.fee, p.version, p.hooks,
               COALESCE(p.quote_symbol, 'WETH') AS quoteSymbol,
-              tb.symbol AS baseSymbol, tb.decimals AS baseDecimals, tb.address AS baseAddress,
+              tb.symbol AS baseSymbol, tb.name AS baseName, tb.decimals AS baseDecimals, tb.address AS baseAddress,
               tq.decimals AS quoteDecimals
        FROM pools p
        JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END

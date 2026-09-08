@@ -30,6 +30,7 @@ interface Props {
   baseAddress: string
   baseSymbol: string
   baseDecimals: number
+  stock?: boolean
 }
 
 const SLIPPAGE_BPS = 100
@@ -40,7 +41,7 @@ const SLIPPAGE_BPS = 100
  * the Universal Router. Sells need an allowance first: a plain ERC20 approve
  * for v3, or ERC20 → Permit2 plus a Permit2 grant to the router for v4.
  */
-export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals }: Props) {
+export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals, stock }: Props) {
   const { address, isConnected, chainId } = useAccount()
   const { connect, connectors } = useConnect()
   const { switchChain } = useSwitchChain()
@@ -232,6 +233,12 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
         <button className="btn btn-ghost mb-4 w-full" onClick={() => switchChain({ chainId: 4663 })}>
           Switch wallet to Robinhood Chain
         </button>
+      )}
+      {stock && (
+        <p className="mb-4 rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">
+          Tokenized stock: the issuer restricts transfers by jurisdiction and eligibility inside the token contract. The quote is exact, but
+          the swap reverts for wallets the issuer hasn&rsquo;t cleared.
+        </p>
       )}
 
       <div className="seg mb-4 w-full" role="tablist">
