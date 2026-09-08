@@ -30,8 +30,12 @@ export interface ScreenerRow {
 export type ScreenerSort = 'vol' | 'traction' | 'change5m' | 'change30m' | 'trades' | 'depth'
 
 let rowCache: { rows: ScreenerRow[]; at: number } | null = null
-/** How old the indexer's stored snapshot may be before we compute live. */
-const SNAPSHOT_FRESH_S = 150
+/**
+ * How old the indexer's stored snapshot may be before we compute live. A
+ * throttled RPC can stall the watcher for many minutes; a stale screener
+ * (prices come from the same candles either way) beats a 10s+ live query.
+ */
+const SNAPSHOT_FRESH_S = 15 * 60
 
 /**
  * Screener rows come from the snapshot the watch loop stores every minute;

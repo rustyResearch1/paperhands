@@ -9,7 +9,7 @@ import { getMeta, setMeta } from './db.js'
 import { refreshScreener } from './screener.js'
 import { BlockClock } from './timestamps.js'
 import { validateNextPool } from './validate.js'
-import { refreshWireRank } from './wire.js'
+import { ensureWireRank, refreshWireRank } from './wire.js'
 
 interface PoolCache {
   baseIsToken0: number | null
@@ -268,6 +268,10 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
 
   let lastBackup = Number(getMeta(db, 'last_backup_ts') ?? 0)
   let lastWire = Number(getMeta(db, 'wire_rank_ts') ?? 0)
+  // A schema change recreates the table empty; rank right away rather than
+  // leaving the Wire to compute live for up to ten minutes.
+  ensureWireRank(db)
+  if ((db.prepare('SELECT COUNT(*) AS n FROM wire_rank').get() as { n: number }).n === 0) lastWire = 0
   let lastValidate = 0
   let lastScreener = 0
   // Catch-up chunk adapts to what the RPC will actually serve: a failed

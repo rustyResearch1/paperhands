@@ -32,31 +32,29 @@ export interface WireRow {
 }
 
 const wireCache = new Map<string, { at: number; rows: WireRow[] }>()
-const WIRE_CACHE_MS = 60_000
-/** How stale the indexer's precomputed ranking may be before we compute live. */
-const RANK_FRESH_S = 30 * 60
+const WIRE_CACHE_MS = 5 * 60_000
 
 /**
  * Ranked wallets. The indexer refreshes a `wire_rank` table every few minutes
  * (the ranking scans every attributed swap — tens of seconds on a full
- * ledger); we serve that. Live computation is the fallback for a fresh
- * database, cached for a minute.
+ * ledger); we serve that, stale or not — a minutes-old ranking beats a
+ * minute-long request. Live computation only when the table is empty (fresh
+ * database), capped and cached.
  */
 export function topTraders(limit = 50, minTrades = 5): WireRow[] {
   const precomputed = rankedFromTable(limit, minTrades)
   if (precomputed) return precomputed
-  const key = `${limit}:${minTrades}`
+  const capped = Math.min(limit, 50)
+  const key = `${capped}:${minTrades}`
   const hit = wireCache.get(key)
   if (hit && Date.now() - hit.at < WIRE_CACHE_MS) return hit.rows
-  const rows = computeTopTraders(limit, minTrades)
+  const rows = computeTopTraders(capped, minTrades)
   wireCache.set(key, { at: Date.now(), rows })
   return rows
 }
 
 function rankedFromTable(limit: number, minTrades: number): WireRow[] | null {
   try {
-    const ts = Number((db.prepare(`SELECT value FROM meta WHERE key = 'wire_rank_ts'`).get() as { value: string } | undefined)?.value ?? 0)
-    if (!ts || Math.floor(Date.now() / 1000) - ts > RANK_FRESH_S) return null
     const rows = db
       .prepare(
         `SELECT trader, trades, buys, sells, vol_eth AS volEth, net_flow_eth AS netFlowEth, pools, last_ts AS lastTs, open_mark_eth AS openMarkEth,
