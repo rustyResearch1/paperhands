@@ -86,6 +86,11 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] BSC wallet explorer (`/x/bsc/w/<address>`) from Etherscan V2 (set `ETHERSCAN_API_KEY`): swaps reconstructed from BNB/WBNB + token
       transfers, same P&L rules, open bags valued by our engine / KyberSwap
 - [x] Ledger lock hardening: web `busy_timeout` 20s, ephemeral session instead of a 500 under lock, batched retention prune
+- [x] Profitable-wallets leaderboard: cost-basis P&L shared with the indexer (`packages/indexer/src/pnl.ts`), `wire_rank` carries
+      realized P&L, win rate, wins/losses, best/worst token; Wire sorts by net flow / realized / win rate; wallet page won-on / lost-on
+- [x] Scalability without over-engineering: precomputed screener + rankings served even when stale; identical concurrent quotes
+      coalesced; at most 8 RPC-heavy quotes in flight (`PAPERHANDS_QUOTE_CONCURRENCY`); per-bag valuation cache; RPC fallback
+      transport (dedicated → public); SQLite WAL + 20s busy timeout + batched prune; per-IP rate limits; usage counters
 - [ ] Solana wallet explorer (needs a history source: Helius enhanced transactions / DAS — key)
 - [ ] Bridge tab via deBridge DLN (supports Robinhood 4663, Solana, BSC; keyless quote + tx build); cross-chain trending list
 - [ ] Learn section (live-data lessons + paper challenges)
