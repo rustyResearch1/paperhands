@@ -7,6 +7,7 @@ import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, setMeta } from './db.js'
 import { BlockClock } from './timestamps.js'
+import { validateNextPool } from './validate.js'
 import { refreshWireRank } from './wire.js'
 
 interface PoolCache {
@@ -248,6 +249,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
 
   let lastBackup = Number(getMeta(db, 'last_backup_ts') ?? 0)
   let lastWire = Number(getMeta(db, 'wire_rank_ts') ?? 0)
+  let lastValidate = 0
   // Catch-up chunk adapts to what the RPC will actually serve: a failed
   // tick halves it, a clean tick grows it back — a wedged loop that never
   // advances the cursor is worse than a slow one.
@@ -293,6 +295,20 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
           const t0 = Date.now()
           const n = refreshWireRank(db)
           console.log(`watch: wire rank refreshed (${n} wallets, ${Date.now() - t0}ms)`)
+        }
+        // Self-validation: replay one busy pool's recent swaps through the
+        // engine while pinned state is still reachable (caught-up cursor).
+        if (nowSec - lastValidate > 30 * 60 && latest - to <= 2_000n) {
+          lastValidate = nowSec
+          const t0 = Date.now()
+          const v = await validateNextPool(client, db, { headBlock: latest, cursor: to }).catch((err) => ({ pool: '?', swaps: 0, exactOutRate: 0, error: (err as Error).message }))
+          if (v) {
+            console.log(
+              v.error
+                ? `watch: validate ${v.pool.slice(0, 12)}… failed — ${v.error}`
+                : `watch: validate ${v.pool.slice(0, 12)}… ${v.swaps} swaps, amountOut exact ${(v.exactOutRate * 100).toFixed(1)}% (${Date.now() - t0}ms)`,
+            )
+          }
         }
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())

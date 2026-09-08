@@ -13,6 +13,7 @@ import { poolMeta, ticketQuote } from '@/lib/quote'
 import { quoteDepth } from '@/lib/screener'
 import { getOrCreateUser } from '@/lib/session'
 import { isTokenizedStock } from '@/lib/stock'
+import { poolValidation } from '@/lib/validation'
 import { EXPLORER_URL } from '@paperhands/chain'
 
 export const dynamic = 'force-dynamic'
@@ -31,6 +32,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
   const pool = rawPool.toLowerCase()
   if (!/^0x[0-9a-f]{40}$/.test(pool) && !/^0x[0-9a-f]{64}$/.test(pool)) notFound()
   const meta = poolMeta(pool)
+  const validation = poolValidation(pool)
   if (!meta) notFound()
 
   const user = await getOrCreateUser()
@@ -100,6 +102,14 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
               <span className="pill">{isV4 ? 'v4' : 'v3'} · {meta.fee >= 8388608 ? 'dynamic fee' : `${(meta.fee / 10000).toFixed(2)}%`}</span>
               {meta.hooked && <span className="pill pill-warn">hook pool</span>}
               {!meta.factory_verified && <span className="pill pill-down">unverified</span>}
+              {validation && !validation.error && validation.swaps >= 20 && (
+                <span
+                  className={`pill ${validation.exactOutRate >= 0.97 ? 'pill-up' : 'pill-warn'}`}
+                  title={`Engine replayed the last ${validation.swaps} recorded swaps of this pool through reconstructed state: ${(validation.exactOutRate * 100).toFixed(1)}% reproduced the on-chain output wei-for-wei, ${(validation.exactPriceRate * 100).toFixed(1)}% the post-swap price. Run ${timeAgo(validation.ranAt)} ago.`}
+                >
+                  engine-verified {(validation.exactOutRate * 100).toFixed(1)}%
+                </span>
+              )}
             </div>
             <div className="mt-1 flex items-baseline gap-3">
               <span className="num text-[30px] font-semibold leading-none">

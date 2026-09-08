@@ -45,7 +45,8 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 ## Stage F — Deep tech
 - [x] Depth/impact curve per pool (chart + API)
 - [x] Hook classifier (address permission bits → capabilities + risk), shown on hooked pool pages
-- [ ] Replay-validate on CI-ish schedule; validation badges on pools
+- [x] Scheduled self-validation in the watch loop (one busy hookless pool per 30 min while the cursor is within
+      pinned state; results in `validations`) → "engine-verified NN%" badge on token pages
 
 ## Stage G — Prod hardening
 - [x] Error boundary, not-found, loading skeleton, OG/Twitter metadata
