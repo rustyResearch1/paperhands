@@ -185,7 +185,7 @@ export class Ingestor {
     const update = this.db.prepare('UPDATE swaps SET trader = ? WHERE tx_hash = ?')
     const queue = rows.map((r) => r.tx_hash)
     let n = 0
-    const workers = Array.from({ length: Math.min(8, queue.length) }, async () => {
+    const workers = Array.from({ length: Math.min(hasDedicatedRpc() ? 32 : 8, queue.length) }, async () => {
       for (let tx_hash = queue.pop(); tx_hash; tx_hash = queue.pop()) {
         try {
           const tx = await this.client.getTransaction({ hash: tx_hash as `0x${string}` })
