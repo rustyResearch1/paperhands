@@ -48,6 +48,13 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 - [x] Scheduled self-validation in the watch loop (one busy hookless pool per 30 min while the cursor is within
       pinned state; results in `validations`) → "engine-verified NN%" badge on token pages
 
+## User-side (needs your accounts / wallet)
+- [ ] Set `PAPERHANDS_RPC` on Railway to a dedicated Alchemy/QuickNode Robinhood Chain endpoint — production still runs on the
+      public RPC (rate limits + ~3k blocks of pinned state)
+- [ ] First real trade with your own wallet, small size: a v3 buy, a v4 hooked buy, a sell (Permit2 two-step), an LP mint + close.
+      Every path is verified by eth_call, but no wallet has signed through the UI yet
+- [ ] Set `NEXT_PUBLIC_SITE_URL` + an OG image; create the GitHub repo and the X account (docs/LAUNCH.md)
+
 ## Stage G — Prod hardening
 - [x] Error boundary, not-found, loading skeleton, OG/Twitter metadata
 - [x] Usage counters (API hits per endpoint, replay + LP backtest runs) shown on /docs
