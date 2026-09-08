@@ -193,6 +193,8 @@ input, select, textarea { font: inherit; color: inherit; }
 .seg { display: inline-flex; padding: 3px; border-radius: 12px; background: var(--bg-3); gap: 2px; }
 .seg button { height: 32px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .seg button[aria-selected='true'] { background: var(--bg); color: var(--ink); box-shadow: var(--shadow); }
+.seg a { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg a[aria-selected='true'] { background: var(--bg); color: var(--ink); box-shadow: var(--shadow); }
 
 /* tables */
 .tbl, .ledger { width: 100%; border-collapse: separate; border-spacing: 0; }

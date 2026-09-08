@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { ModeProvider } from '@/lib/mode'
+import { SolanaProvider } from '@/lib/solana'
 import { wagmiConfig } from '@/lib/wagmi'
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -11,7 +12,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={qc}>
-        <ModeProvider>{children}</ModeProvider>
+        <SolanaProvider>
+          <ModeProvider>{children}</ModeProvider>
+        </SolanaProvider>
       </QueryClientProvider>
     </WagmiProvider>
   )

@@ -289,6 +289,9 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
           const { runBackup } = await import('./backup.js')
           runBackup(db, db.name).catch((err) => console.error('backup failed:', (err as Error).message))
         }
+        cursor = to
+        setMeta(db, CURSOR_KEY, cursor.toString())
+        if (chunk < 20_000n) chunk *= 2n
         // The Wire ranking is too heavy for a web request; refresh it here.
         if (nowSec - lastWire > 10 * 60) {
           lastWire = nowSec
@@ -298,6 +301,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         }
         // Self-validation: replay one busy pool's recent swaps through the
         // engine while pinned state is still reachable (caught-up cursor).
+        // Runs after the cursor is persisted so reconstruction sees this tick.
         if (nowSec - lastValidate > 30 * 60 && latest - to <= 2_000n) {
           lastValidate = nowSec
           const t0 = Date.now()
@@ -310,9 +314,6 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
             )
           }
         }
-        cursor = to
-        setMeta(db, CURSOR_KEY, cursor.toString())
-        if (chunk < 20_000n) chunk *= 2n
         if (swaps.length + v4.swaps.length > 0) {
           console.log(
             `watch: blocks→${to} v3=${ingested}/${swaps.length} v4=${r4.ingested}/${v4.swaps.length} newPools=${newPools + r4.newPools} traders+${enriched}`,

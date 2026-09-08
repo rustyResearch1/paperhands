@@ -73,10 +73,21 @@ function path(legs: ExecLeg[]): Hex {
   return encodePacked(types, values)
 }
 
-export function buildSwap(opts: { side: 'buy' | 'sell'; legs: ExecLeg[]; amountIn: bigint; minOut: bigint; recipient: Address }): V3SwapTx {
+export function buildSwap(opts: {
+  side: 'buy' | 'sell'
+  legs: ExecLeg[]
+  amountIn: bigint
+  minOut: bigint
+  recipient: Address
+  /** Any SwapRouter02-compatible router (PancakeSwap SmartRouter on BSC); defaults to Robinhood Chain's. */
+  router?: Address
+  /** The router's wrapped-native token (WBNB on BSC); defaults to Robinhood Chain's WETH. */
+  wrappedNative?: Address
+}): V3SwapTx {
   const { side, legs, amountIn, minOut, recipient } = opts
+  const router = opts.router ?? UNISWAP.swapRouter02
   if (legs.length === 0 || legs.some((l) => l.version !== 3)) throw new Error('route is not executable via SwapRouter02')
-  const weth = WETH.toLowerCase()
+  const weth = (opts.wrappedNative ?? WETH).toLowerCase()
   const inIsWeth = legs[0]!.tokenIn.toLowerCase() === weth
   const outIsWeth = legs[legs.length - 1]!.tokenOut.toLowerCase() === weth
 
@@ -110,7 +121,7 @@ export function buildSwap(opts: { side: 'buy' | 'sell'; legs: ExecLeg[]; amountI
 
   const calls: Hex[] = [swapData]
   if (innerRecipient === ADDRESS_THIS) calls.push(encodeFunctionData({ abi: swapRouter02Abi, functionName: 'unwrapWETH9', args: [minOut, recipient] }))
-  return { router: 'v3', address: UNISWAP.swapRouter02, abi: swapRouter02Abi, functionName: 'multicall', args: [calls], value }
+  return { router: 'v3', address: router, abi: swapRouter02Abi, functionName: 'multicall', args: [calls], value }
 }
 
 // ---------------------------------------------------------------------------

@@ -49,6 +49,8 @@ export async function readV3Pool(
   pool: Address,
   wordRadius = 5,
   atBlock?: bigint,
+  /** TickLens deployment to read from — defaults to Robinhood Chain's; any Uniswap v3 fork works. */
+  tickLens: Address = UNISWAP.v3TickLens,
 ): Promise<V3PoolSnapshot> {
   const p = { address: pool, abi: v3PoolAbi } as const
   const blockNumber = atBlock ?? (await client.getBlockNumber())
@@ -77,7 +79,7 @@ export async function readV3Pool(
     wordIndexes.map(async (w) => {
       const read = () =>
         client.readContract({
-          address: UNISWAP.v3TickLens,
+          address: tickLens,
           abi: tickLensAbi,
           functionName: 'getPopulatedTicksInWord',
           args: [pool, w],

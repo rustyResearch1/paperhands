@@ -14,6 +14,7 @@
     "@paperhands/chain": "workspace:*",
     "@paperhands/engine": "workspace:*",
     "@paperhands/indexer": "workspace:*",
+    "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.102.8",
     "better-sqlite3": "^11.7.0",
     "lightweight-charts": "^4.2.2",

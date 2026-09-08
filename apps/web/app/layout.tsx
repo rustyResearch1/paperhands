@@ -3,6 +3,7 @@ import { IBM_Plex_Mono, Instrument_Sans } from 'next/font/google'
 import Link from 'next/link'
 import './globals.css'
 import Ambient from '@/components/Ambient'
+import ChainSwitch from '@/components/ChainSwitch'
 import ModeSwitch from '@/components/ModeSwitch'
 import Providers from '@/components/Providers'
 import WalletButton from '@/components/WalletButton'
@@ -55,6 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 ))}
               </nav>
               <div className="ml-auto flex items-center gap-3">
+                <ChainSwitch />
                 <ModeSwitch />
                 <WalletButton bankroll={formatEth(BigInt(user.balance_quote), 3)} />
               </div>
