@@ -65,9 +65,16 @@ export class Ingestor {
   async ingest(swaps: DecodedSwap[], resolveUnknown = true): Promise<{ ingested: number; newPools: number }> {
     let newPools = 0
     const unknown = new Set<string>()
+    // The pool's own first swap in this batch is its discovery block — not the batch's first
+    // swap, which on a catch-up tick would stamp every new pool with the same block.
+    const firstBlock = new Map<string, bigint>()
     for (const s of swaps) {
       const pool = s.pool.toLowerCase()
-      if (this.loadPoolCache(pool) === null) unknown.add(pool)
+      if (this.loadPoolCache(pool) === null) {
+        unknown.add(pool)
+        const prev = firstBlock.get(pool)
+        if (prev === undefined || s.block < prev) firstBlock.set(pool, s.block)
+      }
     }
     if (resolveUnknown && unknown.size > 0) {
       const liqFrom = getMeta(this.db, 'liq_from')
@@ -79,7 +86,7 @@ export class Ingestor {
           const isV4 = pool.length === 66
           const resolved = isV4
             ? await resolveV4PoolById(this.client, this.db, pool)
-            : Boolean(await resolvePool(this.client, this.db, pool as Address, swaps[0]!.block))
+            : Boolean(await resolvePool(this.client, this.db, pool as Address, firstBlock.get(pool) ?? swaps[0]!.block))
           if (!resolved) continue
           newPools++
           this.invalidate(pool)
