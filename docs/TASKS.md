@@ -62,7 +62,8 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] H6 `/x` best execution: the same $100–$10k into USDC/USDG, USDT, ETH, BTC, SOL on every chain → value received, cost/edge in bps,
       impact, gas, who quoted (60s cache)
 - [x] H7 Portfolio → Real: Solana (Phantom) + BNB Chain holdings valued by full-size sell quotes (`/api/v1/xvalue`), alongside RH
-- [ ] H8 Practice ledger on Solana + BNB Chain (paper SOL / BNB bankroll, fills from the same quotes, positions at what the venue would pay)
+- [x] H8 Practice ledgers on Solana (10 SOL) + BNB Chain (5 BNB): `/api/xpaper`, fills at the live quote, partial fills refused,
+      positions valued by sell quotes on the portfolio (verified: 0.1 SOL → 3.31M Bonk via Whirlpool, valued back at 0.0999 SOL)
 
 ## Stage I — Best LP: Robinhood Chain + Solana (+ BSC)
 - [x] I1 LP screener `/lp` + `/api/v1/lp/pools`: RH (ledger) · Orca + Meteora (Solana) · PancakeSwap v3 (BSC); fee yield/day, APR,

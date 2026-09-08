@@ -103,6 +103,29 @@ signature. Out-of-range positions are flagged.
 Everything real-money is non-custodial by construction: we build calldata, your wallet
 signs, the Uniswap contracts settle to you.
 
+## Three chains, one honesty
+
+The same terminal now covers **Solana** and **BNB Chain** next to Robinhood Chain, with
+the same rules everywhere — best route, exact numbers where we can compute them, and a
+real "sold right back" quote so a bag is never worth more than the venue would pay:
+
+| Chain | Quotes | Real execution | LP |
+|---|---|---|---|
+| Robinhood Chain | our exact engine, every v3/v4 venue | SwapRouter02 / Universal Router | v3 NFPM mint · collect · close, backtests |
+| Solana | Jupiter across every Solana DEX + reverse quote | Jupiter transaction signed in Phantom | screener: Orca Whirlpools + Meteora DLMM |
+| BNB Chain | PancakeSwap v3 through our engine (it's a Uniswap v3 fork) **vs** KyberSwap — best fill wins, runner-up shown | PancakeSwap SmartRouter or KyberSwap calldata, signed by your wallet | screener: PancakeSwap v3 |
+
+- `/x` — **best execution across chains**: the same $100–$10k into USDC, USDT, ETH, BTC or SOL on
+  every chain: value received, cost in bps, impact, gas, and who quoted it.
+- `/lp` — **the LP screener**: every pool ranked by *fee-to-vol* (24h fees ÷ TVL, divided by
+  realized daily σ), with 1σ / 2σ / 4σ ranges. High yield on a calm pair beats a screaming APR
+  on something that moves 80% a day.
+- Paper ledgers on Solana (10 SOL) and BNB Chain (5 BNB), filled at the same live quotes.
+- Portfolio → Real shows Phantom and BNB Chain holdings valued by full-size sell quotes.
+
+All keyless public data (Jupiter, KyberSwap, GeckoTerminal, Orca, Meteora); all execution
+non-custodial.
+
 ## Every venue, best fill
 
 Robinhood Chain is fragmented: a token can trade on several v3 fee tiers and v4 pools

@@ -19,11 +19,17 @@ export interface MintPlanLike {
 }
 
 const MAX_UINT128 = (1n << 128n) - 1n
-const weth = WETH.toLowerCase()
-const nfpm = { address: UNISWAP.positionManager, abi: nfpmAbi } as const
 const deadlineIn = (s: number) => BigInt(Math.floor(Date.now() / 1000) + s)
 
-export function buildMint(plan: MintPlanLike, recipient: Address, slippageBps = 100) {
+/** Any Uniswap-v3-fork position manager (PancakeSwap v3 on BSC) with its wrapped native token. */
+export interface LpVenue {
+  positionManager: Address
+  wrappedNative: Address
+}
+const RH_VENUE: LpVenue = { positionManager: UNISWAP.positionManager, wrappedNative: WETH }
+
+export function buildMint(plan: MintPlanLike, recipient: Address, slippageBps = 100, venue: LpVenue = RH_VENUE) {
+  const nfpm = { address: venue.positionManager, abi: nfpmAbi } as const
   const a0 = BigInt(plan.amount0)
   const a1 = BigInt(plan.amount1)
   const min = (v: bigint) => (v * BigInt(10_000 - slippageBps)) / 10_000n
@@ -65,7 +71,8 @@ export interface LpLike {
  * (recipient 0 means "this contract"), then unwraps the WETH to ETH and
  * sweeps the other token to the owner in the same transaction.
  */
-function collectCalls(p: LpLike, owner: Address): `0x${string}`[] {
+function collectCalls(p: LpLike, owner: Address, venue: LpVenue): `0x${string}`[] {
+  const weth = venue.wrappedNative.toLowerCase()
   const t0 = p.token0.toLowerCase()
   const t1 = p.token1.toLowerCase()
   const hasWeth = t0 === weth || t1 === weth
@@ -81,15 +88,17 @@ function collectCalls(p: LpLike, owner: Address): `0x${string}`[] {
   ]
 }
 
-export function buildCollect(p: LpLike, owner: Address) {
-  return { ...nfpm, functionName: 'multicall' as const, args: [collectCalls(p, owner)] as const, value: 0n }
+export function buildCollect(p: LpLike, owner: Address, venue: LpVenue = RH_VENUE) {
+  const nfpm = { address: venue.positionManager, abi: nfpmAbi } as const
+  return { ...nfpm, functionName: 'multicall' as const, args: [collectCalls(p, owner, venue)] as const, value: 0n }
 }
 
 /**
  * Close a position: pull all liquidity (with a slippage floor on both
  * amounts), collect principal + fees, unwrap, and burn the empty NFT.
  */
-export function buildClose(p: LpLike, owner: Address, slippageBps = 100) {
+export function buildClose(p: LpLike, owner: Address, slippageBps = 100, venue: LpVenue = RH_VENUE) {
+  const nfpm = { address: venue.positionManager, abi: nfpmAbi } as const
   const id = BigInt(p.tokenId)
   const liq = BigInt(p.liquidity)
   const min = (v: string) => (BigInt(v) * BigInt(10_000 - slippageBps)) / 10_000n
@@ -103,7 +112,7 @@ export function buildClose(p: LpLike, owner: Address, slippageBps = 100) {
       }),
     )
   }
-  calls.push(...collectCalls(p, owner))
+  calls.push(...collectCalls(p, owner, venue))
   calls.push(encodeFunctionData({ abi: nfpmAbi, functionName: 'burn', args: [id] }))
   return { ...nfpm, functionName: 'multicall' as const, args: [calls] as const, value: 0n }
 }
