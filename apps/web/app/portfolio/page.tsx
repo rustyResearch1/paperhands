@@ -2,6 +2,7 @@ import Link from 'next/link'
 import AccountKey from '@/components/AccountKey'
 import ModeGate from '@/components/ModeGate'
 import RealPortfolio from '@/components/RealPortfolio'
+import XPaperPortfolio from '@/components/XPaperPortfolio'
 import XPortfolio from '@/components/XPortfolio'
 import { db } from '@/lib/db'
 import { formatEth, formatQty, formatUsd } from '@/lib/format'
@@ -167,7 +168,16 @@ export default async function Portfolio() {
 
   return (
     <ModeGate
-      practice={practice}
+      practice={
+        <div className="space-y-5">
+          {practice}
+          <div className="rise">
+            <h2 className="text-[20px] font-semibold tracking-tight">Other chains · paper</h2>
+            <p className="text-[13.5px] text-muted">10 paper SOL and 5 paper BNB, filled at the same quotes real orders get.</p>
+          </div>
+          <XPaperPortfolio />
+        </div>
+      }
       real={
         <div className="space-y-5">
           <RealPortfolio usdRate={usdRate} />

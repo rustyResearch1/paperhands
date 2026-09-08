@@ -87,8 +87,21 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
     refetchInterval: 20_000,
   })
 
-  const nativeBalance: bigint | null = chain === 'sol' ? (solBal.data?.lamports ?? null) : (bnb.data?.value ?? null)
-  const held: bigint = chain === 'sol' ? (solBal.data?.tokenRaw ?? 0n) : ((bscToken.data as bigint | undefined) ?? 0n)
+  // --- paper ledger (practice mode) -----------------------------------------
+  const paper = useQuery({
+    queryKey: ['xpaper', chain],
+    queryFn: async () => (await fetch(`/api/xpaper?chain=${chain}`)).json() as Promise<{ native: string; positions: { token: string; qty: string }[]; error?: string }>,
+    enabled: mode !== 'real',
+    refetchInterval: 30_000,
+  })
+  const paperNative = paper.data && !paper.data.error ? BigInt(paper.data.native) : null
+  const paperHeld = BigInt(paper.data?.positions.find((p) => p.token.toLowerCase() === token.address.toLowerCase())?.qty ?? '0')
+
+  const walletNative: bigint | null = chain === 'sol' ? (solBal.data?.lamports ?? null) : (bnb.data?.value ?? null)
+  const walletHeld: bigint = chain === 'sol' ? (solBal.data?.tokenRaw ?? 0n) : ((bscToken.data as bigint | undefined) ?? 0n)
+  const nativeBalance = mode === 'real' ? walletNative : paperNative
+  const held = mode === 'real' ? walletHeld : paperHeld
+  const [paperFill, setPaperFill] = useState<string | null>(null)
 
   // --- quoting -------------------------------------------------------------
   const rawAmount = useCallback((): bigint => {
@@ -153,7 +166,32 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
   }, [evmReceipt.isSuccess, evmReceipt.isError])
 
   const amount = rawAmount()
-  const needsApproval = chain === 'bsc' && side === 'sell' && ((allowance.data as bigint | undefined) ?? 0n) < amount
+
+  async function onPaperTrade() {
+    if (!quote) return
+    setError(null)
+    setPaperFill(null)
+    setStage('building')
+    try {
+      const r = (await (
+        await fetch('/api/xpaper', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chain, side, token: token.address, amount: amount.toString() }) })
+      ).json()) as { error?: string; quote?: XQuote }
+      if (r.error) throw new Error(r.error)
+      const q = r.quote!
+      setPaperFill(
+        side === 'buy'
+          ? `Filled: ${formatQty(BigInt(q.amountOut), token.decimals)} ${token.symbol} for ${formatQty(BigInt(q.amountIn), native.decimals)} ${native.symbol} via ${q.route.label}`
+          : `Filled: ${formatQty(BigInt(q.amountOut), native.decimals)} ${native.symbol} for ${formatQty(BigInt(q.amountIn), token.decimals)} ${token.symbol} via ${q.route.label}`,
+      )
+      qc.invalidateQueries({ queryKey: ['xpaper'] })
+    } catch (e) {
+      setError(shortError(e))
+    } finally {
+      setStage('idle')
+    }
+  }
+
+  const needsApproval = mode === 'real' && chain === 'bsc' && side === 'sell' && ((allowance.data as bigint | undefined) ?? 0n) < amount
   const wrongChain = chain === 'bsc' && evm.isConnected && evm.chainId !== BSC_ID
   const blocked = Boolean(quote && (quote.fillRatio < 0.999999 || !quote.executable))
   const busy = stage !== 'idle'
@@ -240,7 +278,11 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
     <div className="card p-5">
       <div className="mb-4 flex items-center justify-between">
         <span className="label">Order · {native.symbol}</span>
-        {mode === 'real' ? <span className="pill pill-pen">Real · you sign</span> : <span className="pill">Live quote</span>}
+        {mode === 'real' ? (
+          <span className="pill pill-pen">Real · you sign</span>
+        ) : (
+          <span className="pill pill-up num">paper {paperNative !== null ? `${formatQty(paperNative, native.decimals)} ${native.symbol}` : '…'}</span>
+        )}
       </div>
 
       <div className="seg mb-4 w-full" role="tablist">
@@ -281,8 +323,9 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
               </button>
             ))}
           </div>
-          {!connected && <p className="mt-2 text-[13px] text-muted">Connect a wallet to size a sell from your balance.</p>}
-          {connected && held === 0n && <p className="mt-2 text-[13px] text-down">This wallet holds no {token.symbol}.</p>}
+          {mode === 'real' && !connected && <p className="mt-2 text-[13px] text-muted">Connect a wallet to size a sell from your balance.</p>}
+          {mode === 'real' && connected && held === 0n && <p className="mt-2 text-[13px] text-down">This wallet holds no {token.symbol}.</p>}
+          {mode !== 'real' && held === 0n && <p className="mt-2 text-[13px] text-down">No paper {token.symbol} to sell yet.</p>}
         </div>
       )}
 
@@ -328,6 +371,7 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
           <p className="text-faint">Enter a size to see the exact fill.</p>
         )}
         {error && <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] text-down">{error}</p>}
+        {paperFill && <p className="rounded-xl bg-up-soft px-3 py-2 text-[13px] text-up">{paperFill} · paper</p>}
         {txHash && (
           <p className={`rounded-xl px-3 py-2 text-[13px] ${txState === 'failed' ? 'bg-down-soft text-down' : 'bg-up-soft text-up'}`}>
             {txState === 'confirmed' ? 'Confirmed ✓' : txState === 'failed' ? 'Failed on-chain' : 'Submitted…'}{' '}
@@ -339,9 +383,9 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
       </div>
 
       {mode !== 'real' ? (
-        <p className="mt-5 rounded-xl bg-bg-2 px-3 py-2 text-center text-[13px] text-muted">
-          Practice ledgers live on Robinhood Chain. Switch to <span className="font-semibold text-ink">Real</span> to trade {token.symbol} from your own wallet.
-        </p>
+        <button onClick={onPaperTrade} disabled={busy || !quote || blocked || amount <= 0n || paperNative === null} className={`btn mt-5 w-full ${side === 'buy' ? 'btn-primary' : 'btn-danger'}`}>
+          {stage !== 'idle' ? 'Filling…' : side === 'buy' ? `Buy ${token.symbol} · paper` : `Sell ${token.symbol} · paper`}
+        </button>
       ) : !connected ? (
         <button className="btn btn-primary mt-5 w-full" onClick={onConnect} disabled={sol.connecting}>
           {chain === 'sol' ? (sol.available ? `Connect ${sol.walletName}` : 'Install Phantom to trade') : 'Connect wallet'}
@@ -360,7 +404,9 @@ export default function XTicket({ chain, token, nativeUsd }: Props) {
         </button>
       )}
       <p className="mt-2 text-center text-[12px] text-faint">
-        {chain === 'sol' ? 'Signed in your Solana wallet · routed by Jupiter across every Solana DEX' : 'Signed by your wallet · PancakeSwap v3 through our exact engine, or KyberSwap when it fills better'} · we never hold funds.
+        {mode !== 'real'
+          ? `Paper ${native.symbol}, filled at the same live quote a real order gets. Switch to Real to trade from your own wallet.`
+          : `${chain === 'sol' ? 'Signed in your Solana wallet · routed by Jupiter across every Solana DEX' : 'Signed by your wallet · PancakeSwap v3 through our exact engine, or KyberSwap when it fills better'} · we never hold funds.`}
       </p>
     </div>
   )
