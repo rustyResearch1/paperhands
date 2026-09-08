@@ -132,6 +132,8 @@ function migrate(db: Database.Database) {
       PRIMARY KEY (tx_hash, log_index)
     );
     CREATE INDEX IF NOT EXISTS liq_pool_block ON liq_events(pool, block);
+    -- "burns in the last N blocks" (alerts) without scanning the table
+    CREATE INDEX IF NOT EXISTS liq_kind_block ON liq_events(kind, block);
 
     -- KOL tailing: mirror a wallet's buys with a fixed size, exit when it exits
     CREATE TABLE IF NOT EXISTS kol_tails (

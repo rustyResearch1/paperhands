@@ -1,3 +1,4 @@
+export * from './alerts.js'
 export * from './db.js'
 export * from './discover.js'
 export * from './discoverV4.js'

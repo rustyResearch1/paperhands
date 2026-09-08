@@ -6,6 +6,7 @@ import { fetchV4Logs, fetchV4LiqForPool, registerV4Pool, resolveV4PoolById } fro
 import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, setMeta } from './db.js'
+import { refreshAlerts } from './alerts.js'
 import { refreshScreener } from './screener.js'
 import { BlockClock } from './timestamps.js'
 import { validateNextPool } from './validate.js'
@@ -271,7 +272,12 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
   // A schema change recreates the table empty; rank right away rather than
   // leaving the Wire to compute live for up to ten minutes.
   ensureWireRank(db)
-  if ((db.prepare('SELECT COUNT(*) AS n FROM wire_rank').get() as { n: number }).n === 0) lastWire = 0
+  const wireEmpty = (db.prepare('SELECT COUNT(*) AS n FROM wire_rank').get() as { n: number }).n === 0
+  if (wireEmpty) lastWire = 0
+  // Right after a deploy the web and the indexer share one small box: give
+  // page loads the CPU first and start the heavy refreshes two minutes in
+  // (stored snapshots are served meanwhile), unless there is nothing stored.
+  const bootGrace = Math.floor(Date.now() / 1000) + (wireEmpty ? 0 : 120)
   let lastValidate = 0
   let lastScreener = 0
   // Catch-up chunk adapts to what the RPC will actually serve: a failed
@@ -316,19 +322,21 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         cursor = to
         setMeta(db, CURSOR_KEY, cursor.toString())
         if (chunk < 20_000n) chunk *= 2n
-        // The Markets screener aggregation, precomputed so page loads read JSON.
-        if (nowSec - lastScreener > 60) {
+        // The Markets screener aggregation and the alerts feed, precomputed so
+        // page loads read JSON.
+        if (nowSec >= bootGrace && nowSec - lastScreener > 60) {
           lastScreener = nowSec
           const t0 = Date.now()
           try {
             const n = refreshScreener(db)
-            if (Date.now() - t0 > 3000) console.log(`watch: screener refreshed (${n} rows, ${Date.now() - t0}ms)`)
+            const a = refreshAlerts(db)
+            if (Date.now() - t0 > 3000) console.log(`watch: screener (${n} rows) + alerts (${a}) refreshed in ${Date.now() - t0}ms`)
           } catch (err) {
-            console.error('screener refresh failed:', (err as Error).message)
+            console.error('screener/alerts refresh failed:', (err as Error).message)
           }
         }
         // The Wire ranking is too heavy for a web request; refresh it here.
-        if (nowSec - lastWire > 10 * 60) {
+        if ((nowSec >= bootGrace || wireEmpty) && nowSec - lastWire > 10 * 60) {
           lastWire = nowSec
           const t0 = Date.now()
           const n = refreshWireRank(db)
@@ -337,7 +345,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         // Self-validation: replay one busy pool's recent swaps through the
         // engine while pinned state is still reachable (caught-up cursor).
         // Runs after the cursor is persisted so reconstruction sees this tick.
-        if (nowSec - lastValidate > 30 * 60 && latest - to <= 2_000n) {
+        if (nowSec >= bootGrace && nowSec - lastValidate > 30 * 60 && latest - to <= 2_000n) {
           lastValidate = nowSec
           const t0 = Date.now()
           const v = await validateNextPool(client, db, { headBlock: latest, cursor: to }).catch((err) => ({ pool: '?', swaps: 0, exactOutRate: 0, error: (err as Error).message }))
