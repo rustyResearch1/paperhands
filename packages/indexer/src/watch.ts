@@ -80,13 +80,16 @@ export class Ingestor {
           newPools++
           this.invalidate(pool)
           // A pool discovered after the liq backfill is missing its
-          // liquidity history — fetch it per-pool so reconstruction
-          // stays complete.
-          if (liqFrom) {
+          // liquidity history. Reconstruction floors such pools ~30k blocks
+          // before discovery, so only that window is fetched — and a
+          // discovery storm on a catch-up tick must not fan out into
+          // hundreds of heavy address-filtered fetches.
+          if (liqFrom && unknown.size <= 40) {
             try {
+              const from = lastBlock - 30_000n > BigInt(liqFrom) ? lastBlock - 30_000n : BigInt(liqFrom)
               const events = isV4
-                ? await fetchV4LiqForPool(this.client, pool, BigInt(liqFrom), lastBlock)
-                : await fetchLiqLogs(this.client, BigInt(liqFrom), lastBlock, 100_000n, pool as Address)
+                ? await fetchV4LiqForPool(this.client, pool, from, lastBlock)
+                : await fetchLiqLogs(this.client, from, lastBlock, 10_000n, pool as Address)
               insertLiqEvents(this.db, events)
             } catch (err) {
               console.error(`liq catchup failed for ${pool}:`, (err as Error).message.split('\n')[0])

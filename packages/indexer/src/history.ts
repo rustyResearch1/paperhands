@@ -103,9 +103,13 @@ export async function reconstructAt(
   atBlock: number,
 ): Promise<V3PoolState> {
   const poolKey = pool.toLowerCase()
-  const from = liqFromBlock(db, poolKey)
-  if (from === undefined) throw new Error('liq events not backfilled — run: main.ts liq-backfill')
-  if (atBlock < from) throw new Error(`history starts at block ${from}; asked for ${atBlock}`)
+  const globalFrom = liqFromBlock(db, poolKey)
+  if (globalFrom === undefined) throw new Error('liq events not backfilled — run: main.ts liq-backfill')
+  // A pool discovered mid-stream only has its liquidity history caught up
+  // for the ~30k blocks before discovery; earlier state can't be trusted.
+  const disc = (db.prepare('SELECT discovered_block AS b FROM pools WHERE address = ?').get(poolKey) as { b: number | null } | undefined)?.b
+  const from = disc && disc - 30_000 > globalFrom ? disc - 30_000 : globalFrom
+  if (atBlock < from) throw new Error(`history for this pool starts at block ${from}; asked for ${atBlock}`)
   const cursorStr = getMeta(db, 'watch_cursor')
   if (!cursorStr) throw new Error('no watch cursor')
   const cursor = Number(cursorStr)
