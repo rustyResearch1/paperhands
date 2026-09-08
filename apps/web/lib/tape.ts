@@ -96,8 +96,20 @@ export function latestFills(opts: { sinceBlock?: number; limit?: number; tracked
   const ranked = rankedWallets()
   // Without a since-block, look back an hour; the block index keeps it cheap.
   const since = opts.sinceBlock ?? blocksAgo(3600)
-  // Side/size filters are applied in JS, so over-fetch a little when they're on.
-  const fetch = opts.side || opts.minUsd ? limit * 6 : limit
+  // Side and size are filtered in SQL so LIMIT applies after them — a "sells ≥ $10k" stream
+  // must walk back to the last few, not just the newest N rows. The quote leg is amount1 when
+  // the base is token0, else amount0; positive = the pool received quote = a buy.
+  const quoteLeg = `(CASE WHEN p.base_is_token0 = 1 THEN CAST(s.amount1 AS REAL) ELSE CAST(s.amount0 AS REAL) END)`
+  const isEthQuote = `COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')`
+  const args: (number | string)[] = [since]
+  let where = ''
+  if (opts.side) where += ` AND ${quoteLeg} ${opts.side === 'buy' ? '>' : '<'} 0`
+  if (opts.minUsd && rate) {
+    // Raw quote units: ETH pools are 18 decimals; stable quotes are 6 (USDG/USDC/USDT) or 18 (USDe).
+    where += ` AND ABS(${quoteLeg}) >= CASE WHEN ${isEthQuote} THEN ? ELSE ? * (CASE tq.decimals WHEN 18 THEN 1e18 ELSE 1e6 END) END`
+    args.push((opts.minUsd / rate) * 1e18, opts.minUsd)
+  }
+  args.push(limit)
   // Drive the scan from the swaps index (block, or trader+block for the tracked set) and
   // force the join order — the planner otherwise starts from `tokens` and walks millions of rows.
   const sql = (hint: string) =>
@@ -109,15 +121,15 @@ export function latestFills(opts: { sinceBlock?: number; limit?: number; tracked
      CROSS JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
      CROSS JOIN tokens tq ON tq.address = CASE WHEN p.base_is_token0 = 1 THEN p.token1 ELSE p.token0 END
      WHERE s.block > ? AND p.base_is_token0 IS NOT NULL AND p.factory_verified = 1 AND upper(tb.symbol) NOT IN ${CASH}
-       ${opts.tracked ? 'AND s.trader IN (SELECT trader FROM wire_rank)' : ''}
+       ${opts.tracked ? 'AND s.trader IN (SELECT trader FROM wire_rank)' : ''}${where}
      ORDER BY s.block DESC, s.log_index DESC LIMIT ?`
   let rows: FillRow[]
   try {
-    rows = db.prepare(sql(opts.tracked ? 'INDEXED BY swaps_trader_block' : 'INDEXED BY swaps_block')).all(since, fetch) as FillRow[]
+    rows = db.prepare(sql(opts.tracked ? 'INDEXED BY swaps_trader_block' : 'INDEXED BY swaps_block')).all(...args) as FillRow[]
   } catch (err) {
     // The late indexes are built at boot; until they exist, let the planner do its best.
     if (!/no query solution|no such index/i.test((err as Error).message)) throw err
-    rows = db.prepare(sql('')).all(since, fetch) as FillRow[]
+    rows = db.prepare(sql('')).all(...args) as FillRow[]
   }
   const out: TapeFill[] = []
   for (const r of rows) {

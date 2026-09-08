@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { limitHeaders, rateLimit } from '@/lib/ratelimit'
-import { closedTrades, freshPools, latestFills, tapeStats } from '@/lib/tape'
+import { closedTrades, freshPools, latestFills, tapeStats, tipBlock } from '@/lib/tape'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
       side: side === 'buy' || side === 'sell' ? side : undefined,
       minUsd: Number(q.get('minUsd') ?? 0) || undefined,
     })
-    return NextResponse.json({ fills, at: Date.now() }, { headers })
+    // `tip` lets the client poll `since=<tip>` next time even when nothing matched — a
+    // filtered stream must not re-scan the whole window every few seconds.
+    return NextResponse.json({ fills, tip: tipBlock(), at: Date.now() }, { headers })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502, headers })
   }

@@ -117,8 +117,10 @@ export default function LiveTape() {
         if (side !== 'all') q.set('side', side)
         if (minUsd) q.set('minUsd', String(minUsd))
         if (lastBlock.current) q.set('since', String(lastBlock.current))
-        const r = (await (await fetch(`/api/tape?${q}`)).json()) as { fills?: Fill[] }
+        const r = (await (await fetch(`/api/tape?${q}`)).json()) as { fills?: Fill[]; tip?: number }
         const incoming = (r.fills ?? []).filter((f) => !seen.current.has(`${f.tx}:${f.logIndex}`))
+        // Advance to the ledger tip whether or not anything matched, so the next poll is a delta.
+        if (r.tip) lastBlock.current = Math.max(lastBlock.current, r.tip)
         if (incoming.length) {
           for (const f of incoming) seen.current.add(`${f.tx}:${f.logIndex}`)
           lastBlock.current = Math.max(lastBlock.current, ...incoming.map((f) => f.block))
