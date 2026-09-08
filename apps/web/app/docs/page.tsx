@@ -59,6 +59,12 @@ const ENDPOINTS = [
     example: '/api/v1/lp/pools?chains=sol,bsc&limit=20',
   },
   {
+    path: '/api/lp/bsc · /api/lp/sol',
+    params: 'token → pools · pool → σ ranges · owner → positions · (bsc) pool&range&bnb → mint plan · (sol) POST {action: open|close, …} → transaction',
+    what: 'LP execution helpers for PancakeSwap v3 (BNB Chain) and Orca Whirlpools (Solana): live pools, σ-based ranges, exact position sizing, and the unsigned transaction your wallet signs. Nothing custodied.',
+    example: '/api/lp/sol?token=DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
+  },
+  {
     path: '/api/v1/xprice',
     params: '—',
     what: 'USD prices of ETH (Robinhood Chain), SOL and BNB, from the same sources the quotes use.',

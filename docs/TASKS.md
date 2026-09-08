@@ -71,8 +71,9 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] I2 Range suggester on every screener row (1σ / 2σ / 4σ from realized σ)
 - [x] I3a BSC LP execution: PancakeSwap v3 WBNB pools (live depth), σ ranges, exact mint plan, mint / collect / close through
       Pancake's position manager with our builders (`/api/lp/bsc`, LP card on BSC token pages; positions listed per wallet)
-- [ ] I3b Solana LP execution: Orca Whirlpools open / close position (tx built server-side for the user's pubkey, signed in Phantom);
-      Meteora DLMM after
+- [x] I3b Solana LP execution: Orca Whirlpools SOL pools, σ ranges, open (v2 by-token-amounts with ±1% price band) and close
+      transactions built server-side for the user's pubkey and signed in Phantom (`/api/lp/sol`, LP card on Solana token pages;
+      verified: 0.5 SOL ±30% on SOL/BONK → 0.214 SOL + 9.43M BONK, 1444-byte tx). Meteora DLMM: later
 - [ ] I4 LP backtest beyond RH: volume-share backtest from minute OHLCV + current in-range liquidity (labelled approximate)
 
 ## User-side (needs your accounts / wallet)
