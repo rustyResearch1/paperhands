@@ -193,6 +193,110 @@ export const v4StateViewAbi = [
   },
 ] as const
 
+/** Uniswap v3 NonfungiblePositionManager — the subset we read and write. */
+export const nfpmAbi = [
+  { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ type: 'address', name: 'owner' }], outputs: [{ type: 'uint256' }] },
+  {
+    type: 'function', name: 'tokenOfOwnerByIndex', stateMutability: 'view',
+    inputs: [{ type: 'address', name: 'owner' }, { type: 'uint256', name: 'index' }], outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function', name: 'positions', stateMutability: 'view', inputs: [{ type: 'uint256', name: 'tokenId' }],
+    outputs: [
+      { type: 'uint96', name: 'nonce' },
+      { type: 'address', name: 'operator' },
+      { type: 'address', name: 'token0' },
+      { type: 'address', name: 'token1' },
+      { type: 'uint24', name: 'fee' },
+      { type: 'int24', name: 'tickLower' },
+      { type: 'int24', name: 'tickUpper' },
+      { type: 'uint128', name: 'liquidity' },
+      { type: 'uint256', name: 'feeGrowthInside0LastX128' },
+      { type: 'uint256', name: 'feeGrowthInside1LastX128' },
+      { type: 'uint128', name: 'tokensOwed0' },
+      { type: 'uint128', name: 'tokensOwed1' },
+    ],
+  },
+  {
+    type: 'function', name: 'mint', stateMutability: 'payable',
+    inputs: [{
+      type: 'tuple', name: 'params',
+      components: [
+        { type: 'address', name: 'token0' }, { type: 'address', name: 'token1' }, { type: 'uint24', name: 'fee' },
+        { type: 'int24', name: 'tickLower' }, { type: 'int24', name: 'tickUpper' },
+        { type: 'uint256', name: 'amount0Desired' }, { type: 'uint256', name: 'amount1Desired' },
+        { type: 'uint256', name: 'amount0Min' }, { type: 'uint256', name: 'amount1Min' },
+        { type: 'address', name: 'recipient' }, { type: 'uint256', name: 'deadline' },
+      ],
+    }],
+    outputs: [
+      { type: 'uint256', name: 'tokenId' }, { type: 'uint128', name: 'liquidity' },
+      { type: 'uint256', name: 'amount0' }, { type: 'uint256', name: 'amount1' },
+    ],
+  },
+  {
+    type: 'function', name: 'collect', stateMutability: 'payable',
+    inputs: [{
+      type: 'tuple', name: 'params',
+      components: [
+        { type: 'uint256', name: 'tokenId' }, { type: 'address', name: 'recipient' },
+        { type: 'uint128', name: 'amount0Max' }, { type: 'uint128', name: 'amount1Max' },
+      ],
+    }],
+    outputs: [{ type: 'uint256', name: 'amount0' }, { type: 'uint256', name: 'amount1' }],
+  },
+  {
+    type: 'function', name: 'decreaseLiquidity', stateMutability: 'payable',
+    inputs: [{
+      type: 'tuple', name: 'params',
+      components: [
+        { type: 'uint256', name: 'tokenId' }, { type: 'uint128', name: 'liquidity' },
+        { type: 'uint256', name: 'amount0Min' }, { type: 'uint256', name: 'amount1Min' }, { type: 'uint256', name: 'deadline' },
+      ],
+    }],
+    outputs: [{ type: 'uint256', name: 'amount0' }, { type: 'uint256', name: 'amount1' }],
+  },
+  { type: 'function', name: 'multicall', stateMutability: 'payable', inputs: [{ type: 'bytes[]', name: 'data' }], outputs: [{ type: 'bytes[]' }] },
+  { type: 'function', name: 'refundETH', stateMutability: 'payable', inputs: [], outputs: [] },
+  { type: 'function', name: 'unwrapWETH9', stateMutability: 'payable', inputs: [{ type: 'uint256', name: 'amountMinimum' }, { type: 'address', name: 'recipient' }], outputs: [] },
+  { type: 'function', name: 'sweepToken', stateMutability: 'payable', inputs: [{ type: 'address', name: 'token' }, { type: 'uint256', name: 'amountMinimum' }, { type: 'address', name: 'recipient' }], outputs: [] },
+] as const
+
+/** Uniswap SwapRouter02 — exact-input swaps, with ETH wrap/unwrap helpers. */
+export const swapRouter02Abi = [
+  {
+    type: 'function', name: 'exactInputSingle', stateMutability: 'payable',
+    inputs: [{
+      type: 'tuple', name: 'params',
+      components: [
+        { type: 'address', name: 'tokenIn' }, { type: 'address', name: 'tokenOut' }, { type: 'uint24', name: 'fee' },
+        { type: 'address', name: 'recipient' }, { type: 'uint256', name: 'amountIn' },
+        { type: 'uint256', name: 'amountOutMinimum' }, { type: 'uint160', name: 'sqrtPriceLimitX96' },
+      ],
+    }],
+    outputs: [{ type: 'uint256', name: 'amountOut' }],
+  },
+  {
+    type: 'function', name: 'exactInput', stateMutability: 'payable',
+    inputs: [{
+      type: 'tuple', name: 'params',
+      components: [
+        { type: 'bytes', name: 'path' }, { type: 'address', name: 'recipient' },
+        { type: 'uint256', name: 'amountIn' }, { type: 'uint256', name: 'amountOutMinimum' },
+      ],
+    }],
+    outputs: [{ type: 'uint256', name: 'amountOut' }],
+  },
+  { type: 'function', name: 'multicall', stateMutability: 'payable', inputs: [{ type: 'bytes[]', name: 'data' }], outputs: [{ type: 'bytes[]' }] },
+  { type: 'function', name: 'unwrapWETH9', stateMutability: 'payable', inputs: [{ type: 'uint256', name: 'amountMinimum' }, { type: 'address', name: 'recipient' }], outputs: [] },
+  { type: 'function', name: 'refundETH', stateMutability: 'payable', inputs: [], outputs: [] },
+] as const
+
+export const erc20WriteAbi = [
+  { type: 'function', name: 'approve', stateMutability: 'nonpayable', inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { type: 'function', name: 'allowance', stateMutability: 'view', inputs: [{ type: 'address' }, { type: 'address' }], outputs: [{ type: 'uint256' }] },
+] as const
+
 export const v4QuoterAbi = [
   {
     type: 'function', name: 'quoteExactInputSingle', stateMutability: 'nonpayable',

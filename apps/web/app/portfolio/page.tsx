@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import AccountKey from '@/components/AccountKey'
+import ModeGate from '@/components/ModeGate'
+import RealPortfolio from '@/components/RealPortfolio'
 import { db } from '@/lib/db'
 import { formatEth, formatQty, formatUsd } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
@@ -59,7 +61,7 @@ export default async function Portfolio() {
   const pnlPct = (Number(pnl) / Number(start)) * 100
   const closed = rows.filter((r) => BigInt(r.qty) === 0n && BigInt(r.realized_quote) !== 0n)
 
-  return (
+  const practice = (
     <div className="space-y-5">
       <div className="rise">
         <div className="label">Practice portfolio</div>
@@ -161,6 +163,8 @@ export default async function Portfolio() {
       </div>
     </div>
   )
+
+  return <ModeGate practice={practice} real={<RealPortfolio usdRate={usdRate} />} />
 }
 
 function Kpi({ label, value, hero, tone }: { label: string; value: string; hero?: boolean; tone?: 'up' | 'down' }) {
