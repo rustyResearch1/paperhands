@@ -9,6 +9,7 @@ import { formatQty } from '@/lib/format'
 import { buildClose, buildCollect, buildMint, type LpVenue } from '@/lib/lpexecute'
 import { useMode } from '@/lib/mode'
 import { BSC_SPENDER, EXPLORER } from '@/lib/x/types'
+import XLpBacktest from '@/components/XLpBacktest'
 
 const BSC_ID = 56 as const
 const VENUE: LpVenue = { positionManager: '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364', wrappedNative: '0xbb4CdB9CBd36B01bD1cBaEbF2De08d9173bc095c' }
@@ -66,7 +67,7 @@ function shortError(e: unknown): string {
  * a BNB deposit; approve the token once; mint through Pancake's position
  * manager — the same builders as Robinhood Chain, different addresses.
  */
-export default function BscLpCard({ token, symbol, decimals }: { token: string; symbol: string; decimals: number }) {
+export default function BscLpCard({ token, symbol, decimals, nativeUsd }: { token: string; symbol: string; decimals: number; nativeUsd: number | null }) {
   const { mode } = useMode()
   const { address, isConnected, chainId } = useAccount()
   const { connect, connectors } = useConnect()
@@ -224,6 +225,7 @@ export default function BscLpCard({ token, symbol, decimals }: { token: string; 
             </div>
           )}
           {plan.data?.error && <p className="mt-2 text-[13px] text-down">{plan.data.error}</p>}
+          <XLpBacktest chain="bsc" pool={chosen?.pool ?? null} rangePct={effRange} depositUsd={nativeUsd ? Number(bnb) * nativeUsd : null} />
           {mode !== 'real' ? (
             <p className="mt-3 rounded-xl bg-bg-2 px-3 py-2 text-[13px] text-muted">
               Switch to <span className="font-semibold text-ink">Real</span> to open this position from your wallet.

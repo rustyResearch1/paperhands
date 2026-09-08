@@ -165,8 +165,8 @@ export async function orcaPools(limit = 25): Promise<LpPoolRow[]> {
           sigma24Pct: null,
           score: null,
           ranges: null,
-          href: `/x/sol/${p.tokenMintA ?? p.tokenA?.address ?? ''}`,
-          executable: false,
+          href: `/x/sol/${[p.tokenMintA ?? p.tokenA?.address, p.tokenMintB ?? p.tokenB?.address].find((m) => m && m !== 'So11111111111111111111111111111111111111112') ?? ''}`,
+          executable: [p.tokenMintA ?? p.tokenA?.address, p.tokenMintB ?? p.tokenB?.address].includes('So11111111111111111111111111111111111111112'),
         }
       })
       .filter((r): r is LpPoolRow => r !== null)
@@ -266,7 +266,7 @@ export async function pancakePools(limit = 25): Promise<LpPoolRow[]> {
         score: null,
         ranges: null,
         href: `/x/bsc/${p.baseToken}`,
-        executable: false,
+        executable: /WBNB|\/ BNB|BNB \//.test(p.name),
       })
     }
     return out

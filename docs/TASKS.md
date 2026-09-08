@@ -74,7 +74,9 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] I3b Solana LP execution: Orca Whirlpools SOL pools, σ ranges, open (v2 by-token-amounts with ±1% price band) and close
       transactions built server-side for the user's pubkey and signed in Phantom (`/api/lp/sol`, LP card on Solana token pages;
       verified: 0.5 SOL ±30% on SOL/BONK → 0.214 SOL + 9.43M BONK, 1444-byte tx). Meteora DLMM: later
-- [ ] I4 LP backtest beyond RH: volume-share backtest from minute OHLCV + current in-range liquidity (labelled approximate)
+- [x] I4 Approximate LP backtest for Solana + BSC pools (`/api/lp/xbacktest`, block in both LP cards): volume-share fees from
+      minute candles × your share of current in-range liquidity, IL from the price path, time in range, fee APR run-rate
+- [ ] I5 Meteora DLMM execution (bin positions) · Raydium CLMM · BSC USDT-quoted LP deposits
 
 ## User-side (needs your accounts / wallet)
 - [ ] Set `PAPERHANDS_RPC` on Railway to a dedicated Alchemy/QuickNode Robinhood Chain endpoint — production still runs on the

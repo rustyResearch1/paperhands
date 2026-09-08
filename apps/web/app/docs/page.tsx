@@ -65,6 +65,12 @@ const ENDPOINTS = [
     example: '/api/lp/sol?token=DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
   },
   {
+    path: '/api/lp/xbacktest',
+    params: 'chain=sol|bsc, pool, range (± %), usd (deposit), hours (1–16)',
+    what: 'Approximate LP backtest for pools we don’t index: fees = minute volume × pool fee × your share of current in-range liquidity while in range; impermanent loss from the price path; time in range; fee APR run-rate. Robinhood Chain’s /api/v1/lp replays every swap exactly — this is the estimate for everywhere else.',
+    example: '/api/lp/xbacktest?chain=sol&pool=5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9&range=20&usd=500&hours=16',
+  },
+  {
     path: '/api/v1/xprice',
     params: '—',
     what: 'USD prices of ETH (Robinhood Chain), SOL and BNB, from the same sources the quotes use.',

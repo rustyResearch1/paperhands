@@ -6,6 +6,7 @@ import { formatQty, formatUsd } from '@/lib/format'
 import { useMode } from '@/lib/mode'
 import { useSolana, waitForSignature } from '@/lib/solana'
 import { EXPLORER } from '@/lib/x/types'
+import XLpBacktest from '@/components/XLpBacktest'
 
 interface PoolChoice {
   address: string
@@ -56,7 +57,7 @@ function shortError(e: unknown): string {
  * range and a SOL deposit; the position transaction is built for your pubkey
  * and signed in your wallet. Close removes liquidity, collects and burns.
  */
-export default function SolLpCard({ token, symbol, decimals }: { token: string; symbol: string; decimals: number }) {
+export default function SolLpCard({ token, symbol, decimals, nativeUsd }: { token: string; symbol: string; decimals: number; nativeUsd: number | null }) {
   const { mode } = useMode()
   const sol = useSolana()
   const qc = useQueryClient()
@@ -173,6 +174,7 @@ export default function SolLpCard({ token, symbol, decimals }: { token: string; 
           <p className="mt-2 text-[12px] text-muted">
             About half in SOL and half in {otherSym(chosen)} at the current price; both must be in your wallet. Buy {otherSym(chosen)} in the order sheet first if needed.
           </p>
+          <XLpBacktest chain="sol" pool={chosen.address} rangePct={effRange} depositUsd={nativeUsd ? Number(deposit) * nativeUsd : null} />
           {mode !== 'real' ? (
             <p className="mt-3 rounded-xl bg-bg-2 px-3 py-2 text-[13px] text-muted">
               Switch to <span className="font-semibold text-ink">Real</span> to open this position from your wallet.

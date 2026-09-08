@@ -119,12 +119,12 @@ export default async function XTokenPage({ params }: { params: Promise<{ chain: 
           </div>
           {chain === 'bsc' && (
             <div className="rise rise-3">
-              <BscLpCard token={meta.address} symbol={meta.symbol} decimals={meta.decimals} />
+              <BscLpCard token={meta.address} symbol={meta.symbol} decimals={meta.decimals} nativeUsd={nativeUsd} />
             </div>
           )}
           {chain === 'sol' && (
             <div className="rise rise-3">
-              <SolLpCard token={meta.address} symbol={meta.symbol} decimals={meta.decimals} />
+              <SolLpCard token={meta.address} symbol={meta.symbol} decimals={meta.decimals} nativeUsd={nativeUsd} />
             </div>
           )}
           <Link href={`/x/${chain}`} className="block text-[13px] text-pen hover:underline">

@@ -258,6 +258,18 @@ export async function orcaPositions(owner: string): Promise<OrcaPosition[]> {
   return out
 }
 
+/** Current in-range liquidity and fee for a Whirlpool, plus SOL/USD for unit conversion. */
+export async function orcaPoolLiquidity(poolAddress: string): Promise<{ liquidityRaw: number; decimalsA: number; decimalsB: number; feeRate: number; solUsd: number }> {
+  const { client } = orca()
+  const pool = await client.getPool(new PublicKey(poolAddress), IGNORE_CACHE)
+  const d = pool.getData()
+  const solUsd = await fetch(`https://lite-api.jup.ag/price/v3?ids=${SOL_MINT}`, { cache: 'no-store' })
+    .then((r) => r.json() as Promise<Record<string, { usdPrice: number }>>)
+    .then((j) => j[SOL_MINT]?.usdPrice ?? 1)
+    .catch(() => 1)
+  return { liquidityRaw: Number(d.liquidity.toString()), decimalsA: pool.getTokenAInfo().decimals, decimalsB: pool.getTokenBInfo().decimals, feeRate: d.feeRate, solUsd }
+}
+
 /** Close a position: remove all liquidity, collect fees and rewards, burn the NFT. One or more transactions to sign in order. */
 export async function planOrcaClose(positionAddress: string, owner: string): Promise<{ transactions: string[] }> {
   const { client, ctx } = orca()
