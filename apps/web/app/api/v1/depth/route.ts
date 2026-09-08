@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { limitHeaders, rateLimit } from '@/lib/ratelimit'
 import { bestFill } from '@/lib/route'
+import { withFrozenSnapshots } from '@/lib/venues'
 
 export const maxDuration = 30
 
@@ -27,29 +28,31 @@ export async function GET(req: NextRequest) {
 
   // Sells are sized in base units: derive from the buy quote of the same ETH size.
   const points: { eth: number; amountIn: string; amountOut: string; priceImpactBps: number; priceMovePct: number; fillRatio: number; route: string }[] = []
-  for (const eth of SIZES) {
-    const wei = BigInt(Math.round(eth * 1e6)) * 10n ** 12n
-    try {
-      let amountIn = wei
-      if (side === 'sell') {
-        const b = await bestFill(token, 'buy', wei, { skipExit: true })
-        amountIn = b.amountOut
+  await withFrozenSnapshots(async () => {
+    for (const eth of SIZES) {
+      const wei = BigInt(Math.round(eth * 1e6)) * 10n ** 12n
+      try {
+        let amountIn = wei
+        if (side === 'sell') {
+          const b = await bestFill(token, 'buy', wei, { skipExit: true })
+          amountIn = b.amountOut
+        }
+        const r = await bestFill(token, side, amountIn, { skipExit: true })
+        points.push({
+          eth,
+          amountIn: r.amountIn.toString(),
+          amountOut: r.amountOut.toString(),
+          priceImpactBps: r.priceImpactBps,
+          priceMovePct: r.priceMovePct,
+          fillRatio: r.fillRatio,
+          route: r.legs.map((l) => `v${l.venue.version}:${l.venue.pool.slice(0, 10)}`).join('>'),
+        })
+        if (r.fillRatio < 1 || r.exhaustedWindow) break
+      } catch {
+        break
       }
-      const r = await bestFill(token, side, amountIn, { skipExit: true })
-      points.push({
-        eth,
-        amountIn: r.amountIn.toString(),
-        amountOut: r.amountOut.toString(),
-        priceImpactBps: r.priceImpactBps,
-        priceMovePct: r.priceMovePct,
-        fillRatio: r.fillRatio,
-        route: r.legs.map((l) => `v${l.venue.version}:${l.venue.pool.slice(0, 10)}`).join('>'),
-      })
-      if (r.fillRatio < 1 || r.exhaustedWindow) break
-    } catch {
-      break
     }
-  }
+  })
   const body = { token, side, points, generatedAt: Date.now() }
   cache.set(key, { at: Date.now(), body })
   return NextResponse.json(body, { headers: limitHeaders(rl) })

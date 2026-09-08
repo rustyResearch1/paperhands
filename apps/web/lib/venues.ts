@@ -86,13 +86,28 @@ export interface VenueQuote {
   exact: boolean
 }
 
-const g = globalThis as unknown as { __phvsnaps?: Map<string, { snap: PoolStateSnapshot; at: number }> }
+const g = globalThis as unknown as { __phvsnaps?: Map<string, { snap: PoolStateSnapshot; at: number }>; __phfrozen?: number }
 const snaps = (g.__phvsnaps ??= new Map())
 const TTL = 15_000
 
+/**
+ * Run `fn` against one consistent set of pool states: cached snapshots are
+ * reused even past their TTL (misses still fetch). A depth curve computed
+ * across a refresh would mix two markets.
+ */
+export async function withFrozenSnapshots<T>(fn: () => Promise<T>): Promise<T> {
+  g.__phfrozen = (g.__phfrozen ?? 0) + 1
+  try {
+    return await fn()
+  } finally {
+    g.__phfrozen = (g.__phfrozen ?? 1) - 1
+  }
+}
+
 async function snapshot(pool: string, fresh: boolean): Promise<PoolStateSnapshot> {
   const hit = snaps.get(pool)
-  if (!fresh && hit && Date.now() - hit.at < TTL) return hit.snap
+  const frozen = (g.__phfrozen ?? 0) > 0
+  if (!fresh && hit && (frozen || Date.now() - hit.at < TTL)) return hit.snap
   const snap = await readPoolState(chainClient, db, pool)
   snaps.set(pool, { snap, at: Date.now() })
   return snap

@@ -29,9 +29,9 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 - [ ] Out-of-range + rug-signal alerts feed
 
 ## Stage E — Public API v1
-- [ ] /api/v1/quote (best route, impact curve), /api/v1/pools, /api/v1/pools/:id/depth
-- [ ] /api/v1/wallets/:addr/replay, /api/v1/lp/backtest
-- [ ] Rate limiting, /docs page
+- [x] /api/v1/quote (best route + legs), /api/v1/pools, /api/v1/depth (impact curve)
+- [x] /api/v1/replay, /api/v1/lp
+- [x] Rate limiting, /docs page
 
 ## Stage F — Deep tech
 - [ ] Depth/impact curve per pool (chart + API)

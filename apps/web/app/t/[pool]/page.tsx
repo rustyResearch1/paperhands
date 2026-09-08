@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Chart from '@/components/Chart'
+import DepthCurve from '@/components/DepthCurve'
 import LpLab from '@/components/LpLab'
 import TradeTicket from '@/components/TradeTicket'
 import { db } from '@/lib/db'
@@ -128,6 +129,10 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
             <Chart pool={pool} />
           </div>
 
+          <div className="rise rise-2">
+            <DepthCurve token={meta.baseAddress} />
+          </div>
+
           {qty > 0n && (
             <div className="card rise rise-2 p-5">
               <div className="label mb-3">Your position</div>
@@ -205,7 +210,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
               </div>
               <div className="rise rise-3">
                 {labReady ? (
-                  <LpLab pool={pool} />
+                  <LpLab pool={pool} baseAddress={meta.baseAddress} baseSymbol={meta.baseSymbol} baseDecimals={meta.baseDecimals} />
                 ) : (
                   <p className="text-[12px] text-faint">
                     LP backtests for {meta.hooked ? 'hook' : 'USDG-quoted'} pools are coming — trading routes through them already.
