@@ -8,6 +8,22 @@ export interface V4PoolStateSnapshot {
   poolId: Hex
   state: V3PoolState
   blockNumber: bigint
+  /** Effective swap fee (protocol + LP, v4 combination formula) per direction, in pips. */
+  feeZeroForOne: number
+  feeOneForZero: number
+}
+
+/**
+ * v4 charges the protocol fee on input ahead of the LP fee:
+ * swapFee = protocol + lp − protocol·lp/1e6 (floor), per direction.
+ */
+export function v4EffectiveFee(protocolFeeDir: number, lpFee: number): number {
+  return protocolFeeDir + lpFee - Math.floor((protocolFeeDir * lpFee) / 1_000_000)
+}
+
+/** The engine state for one swap direction (fee differs by direction in v4). */
+export function v4StateForDirection(snap: V4PoolStateSnapshot, zeroForOne: boolean): V3PoolState {
+  return { ...snap.state, feePips: zeroForOne ? snap.feeZeroForOne : snap.feeOneForZero }
 }
 
 /**
@@ -34,7 +50,11 @@ export async function readV4Pool(
     client.readContract({ ...sv, functionName: 'getSlot0', args: [poolId], blockNumber }),
     client.readContract({ ...sv, functionName: 'getLiquidity', args: [poolId], blockNumber }),
   ])
-  const [sqrtPriceX96, tick, , lpFee] = slot0
+  const [sqrtPriceX96, tick, protocolFee, lpFee] = slot0
+  // Per-direction protocol fee: lower 12 bits = zeroForOne, upper = oneForZero.
+  const pfZeroForOne = Number(protocolFee) & 0xfff
+  const pfOneForZero = Number(protocolFee) >> 12
+  const lp = feePips || Number(lpFee)
 
   const compressed = Math.floor(tick / tickSpacing)
   const currentWord = compressed >> 8
@@ -76,13 +96,15 @@ export async function readV4Pool(
   return {
     poolId,
     blockNumber,
+    feeZeroForOne: v4EffectiveFee(pfZeroForOne, lp),
+    feeOneForZero: v4EffectiveFee(pfOneForZero, lp),
     state: {
       sqrtPriceX96,
       tick,
       liquidity,
-      // Static-fee pools report their fee here; dynamic-fee (hooked) pools
-      // are excluded from simulation by callers anyway.
-      feePips: feePips || Number(lpFee),
+      // LP-only fee; quote through v4StateForDirection so the direction's
+      // protocol fee is included — quoting with this raw state overstates output.
+      feePips: lp,
       tickSpacing,
       ticks,
       tickWindow: {

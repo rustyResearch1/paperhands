@@ -193,6 +193,36 @@ export const v4StateViewAbi = [
   },
 ] as const
 
+export const v4QuoterAbi = [
+  {
+    type: 'function', name: 'quoteExactInputSingle', stateMutability: 'nonpayable',
+    inputs: [
+      {
+        type: 'tuple', name: 'params',
+        components: [
+          {
+            type: 'tuple', name: 'poolKey',
+            components: [
+              { type: 'address', name: 'currency0' },
+              { type: 'address', name: 'currency1' },
+              { type: 'uint24', name: 'fee' },
+              { type: 'int24', name: 'tickSpacing' },
+              { type: 'address', name: 'hooks' },
+            ],
+          },
+          { type: 'bool', name: 'zeroForOne' },
+          { type: 'uint128', name: 'exactAmount' },
+          { type: 'bytes', name: 'hookData' },
+        ],
+      },
+    ],
+    outputs: [
+      { type: 'uint256', name: 'amountOut' },
+      { type: 'uint256', name: 'gasEstimate' },
+    ],
+  },
+] as const
+
 export const v3PoolCreatedEvent = {
   type: 'event', name: 'PoolCreated',
   inputs: [
