@@ -1,4 +1,5 @@
 import { bscQuote, bscToken } from './bsc'
+import { coalesce, quoteSemaphore } from './limits'
 import { rhQuote, rhToken } from './rh'
 import { solQuote, solToken } from './sol'
 import { NATIVE, X_CHAINS, type XChain, type XQuote, type XToken } from './types'
@@ -20,14 +21,18 @@ export function validTokenAddress(chain: XChain, address: string): boolean {
  */
 export async function xquote(chain: XChain, side: 'buy' | 'sell', token: string, amountIn: bigint): Promise<XQuote> {
   if (amountIn <= 0n) throw new Error('amount must be positive')
-  switch (chain) {
-    case 'rh':
-      return rhQuote(side, token.toLowerCase(), amountIn)
-    case 'sol':
-      return solQuote(side, token, amountIn)
-    case 'bsc':
-      return bscQuote(side, token.toLowerCase(), amountIn)
-  }
+  const key = `${chain}:${side}:${token.toLowerCase()}:${amountIn}`
+  // Same quote requested twice at once → computed once; RPC-heavy chains take a slot.
+  return coalesce(key, () => {
+    switch (chain) {
+      case 'rh':
+        return quoteSemaphore.run(() => rhQuote(side, token.toLowerCase(), amountIn))
+      case 'sol':
+        return solQuote(side, token, amountIn)
+      case 'bsc':
+        return quoteSemaphore.run(() => bscQuote(side, token.toLowerCase(), amountIn))
+    }
+  })
 }
 
 export async function xtoken(chain: XChain, address: string): Promise<XToken | null> {

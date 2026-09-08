@@ -1,3 +1,4 @@
+import { traderPnlSummary, traderTokenPnl } from '@paperhands/indexer'
 import { db } from './db'
 
 /**
@@ -21,6 +22,13 @@ export interface WireRow {
   lastTs: number
   /** Marked value of net base holdings accumulated in-window. */
   openMarkEth: number
+  /** Cost-basis realized profit, ETH (stables excluded). */
+  realizedEth: number
+  winRate: number | null
+  wins: number
+  losses: number
+  bestSymbol: string | null
+  worstSymbol: string | null
 }
 
 const wireCache = new Map<string, { at: number; rows: WireRow[] }>()
@@ -51,7 +59,8 @@ function rankedFromTable(limit: number, minTrades: number): WireRow[] | null {
     if (!ts || Math.floor(Date.now() / 1000) - ts > RANK_FRESH_S) return null
     const rows = db
       .prepare(
-        `SELECT trader, trades, buys, sells, vol_eth AS volEth, net_flow_eth AS netFlowEth, pools, last_ts AS lastTs, open_mark_eth AS openMarkEth
+        `SELECT trader, trades, buys, sells, vol_eth AS volEth, net_flow_eth AS netFlowEth, pools, last_ts AS lastTs, open_mark_eth AS openMarkEth,
+                realized_eth AS realizedEth, win_rate AS winRate, wins, losses, best_symbol AS bestSymbol, worst_symbol AS worstSymbol
          FROM wire_rank WHERE trades >= ? ORDER BY rank LIMIT ?`,
       )
       .all(minTrades, limit) as WireRow[]
@@ -73,11 +82,14 @@ function computeTopTraders(limit: number, minTrades: number): WireRow[] {
        GROUP BY trader HAVING trades >= @min
        ORDER BY netFlowEth DESC LIMIT @limit`,
     )
-    .all({ min: minTrades, limit }) as Omit<WireRow, 'openMarkEth'>[]
+    .all({ min: minTrades, limit }) as Omit<WireRow, 'openMarkEth' | 'realizedEth' | 'winRate' | 'wins' | 'losses' | 'bestSymbol' | 'worstSymbol'>[]
 
   if (rows.length === 0) return []
   const marks = openMarks(rows.map((r) => r.trader))
-  return rows.map((r) => ({ ...r, openMarkEth: marks.get(r.trader) ?? 0 }))
+  return rows.map((r) => {
+    const s = traderPnlSummary(traderTokenPnl(db, r.trader))
+    return { ...r, openMarkEth: marks.get(r.trader) ?? 0, realizedEth: s.realized, winRate: s.winRate, wins: s.wins, losses: s.losses, bestSymbol: s.bestSymbol, worstSymbol: s.worstSymbol }
+  })
 }
 
 function openMarks(traders: string[]): Map<string, number> {

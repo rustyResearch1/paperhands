@@ -2,6 +2,7 @@ import { readPoolState, type PoolStateSnapshot } from '@paperhands/indexer'
 import { chainClient as client } from './chain'
 import { db } from './db'
 import { bestFill, walletSignable } from './route'
+import { coalesce, quoteSemaphore } from './x/limits'
 
 export { chainClient } from './chain'
 
@@ -118,12 +119,14 @@ function humanPrices(spotRaw: number, execRaw: number, side: 'buy' | 'sell', bas
  * on the best. The ledger stays ETH-denominated: routes always start
  * (buy) or end (sell) in ETH.
  */
-export async function ticketQuote(
-  pool: string,
-  side: 'buy' | 'sell',
-  amountIn: bigint,
-  opts: { fresh?: boolean; real?: boolean } = {},
-): Promise<TicketQuote> {
+export function ticketQuote(pool: string, side: 'buy' | 'sell', amountIn: bigint, opts: { fresh?: boolean; real?: boolean } = {}): Promise<TicketQuote> {
+  // Concurrent identical tickets share one computation; fresh (execution)
+  // quotes bypass the share but still take a concurrency slot.
+  const run = () => quoteSemaphore.run(() => ticketQuoteInner(pool, side, amountIn, opts))
+  return opts.fresh ? run() : coalesce(`ticket:${pool.toLowerCase()}:${side}:${amountIn}:${opts.real ? 1 : 0}`, run)
+}
+
+async function ticketQuoteInner(pool: string, side: 'buy' | 'sell', amountIn: bigint, opts: { fresh?: boolean; real?: boolean }): Promise<TicketQuote> {
   const meta = poolMeta(pool)
   if (!meta) throw new Error('unknown or unpriced pool')
   const r = await bestFill(meta.baseAddress, side, amountIn, {

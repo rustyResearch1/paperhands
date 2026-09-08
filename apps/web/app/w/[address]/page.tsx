@@ -24,7 +24,8 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
   const page = Math.max(1, Number(pageRaw ?? 1) || 1)
 
   const user = await getOrCreateUser()
-  const [w, swaps] = await Promise.all([walletSummary(address), Promise.resolve(walletSwapLines(address, page))])
+  const w = walletSummary(address)
+  const swaps = walletSwapLines(address, page)
   const bags = w.tokens.filter((t) => t.openQty > 0).map((t) => ({ token: t.token, pool: t.pool, symbol: t.symbol, decimals: t.decimals, openQtyRaw: t.openQtyRaw, openCost: t.openCost, markEth: t.markEth }))
   const tail = db.prepare('SELECT size_quote, active FROM kol_tails WHERE user_id = ? AND wallet = ?').get(user.id, address) as { size_quote: string; active: number } | undefined
   const rate = ethUsdRate()
@@ -68,6 +69,55 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
         <Kpi label="Volume" value={fmt(w.volEth, 1)} sub={`ETH · ${w.trades} swaps`} />
         <Kpi label="Open bags · marked" value={fmt(w.markOpen, 2)} sub="ETH at the chart price" />
       </div>
+
+      {(w.wins > 0 || w.losses > 0) && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <span className="label">Won on</span>
+              <span className="pill pill-up">{w.wins} tokens</span>
+            </div>
+            <ul className="mt-2 space-y-1 text-[13.5px]">
+              {w.tokens
+                .filter((t) => t.sells > 0 && t.realized > 0)
+                .slice(0, 5)
+                .map((t) => (
+                  <li key={t.token} className="flex items-center justify-between gap-2">
+                    <Link href={`/t/${t.pool}`} className="font-semibold hover:text-pen">
+                      {t.symbol}
+                    </Link>
+                    <span className="num text-up">
+                      +{fmt(t.realized)} ETH{usd(t.realized)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <span className="label">Lost on</span>
+              <span className="pill pill-down">{w.losses} tokens</span>
+            </div>
+            <ul className="mt-2 space-y-1 text-[13.5px]">
+              {[...w.tokens]
+                .filter((t) => t.sells > 0 && t.realized < 0)
+                .sort((a, b) => a.realized - b.realized)
+                .slice(0, 5)
+                .map((t) => (
+                  <li key={t.token} className="flex items-center justify-between gap-2">
+                    <Link href={`/t/${t.pool}`} className="font-semibold hover:text-pen">
+                      {t.symbol}
+                    </Link>
+                    <span className="num text-down">
+                      {fmt(t.realized)} ETH{usd(t.realized)}
+                    </span>
+                  </li>
+                ))}
+              {w.losses === 0 && <li className="text-muted">No losing exits in the tracked window.</li>}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <div className="rise rise-1">
         <OpenBagsTable bags={bags} ethUsd={rate} />
@@ -220,8 +270,7 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
           </div>
           <p className="text-[12px] text-faint">
             Realized = ETH taken out of pools minus the pro-rata cost of what was sold. Unrealized = what the best route would pay for the open bag right now, minus its cost. Attribution
-            covers the ledger&rsquo;s tracked window; buys older than that show as &ldquo;partial&rdquo;. Stablecoin and WETH legs are excluded from P&amp;L
-            {w.stables.length ? ` (${w.stables.map((s) => s.symbol).join(', ')} flows: ${fmt(w.stables.reduce((a, s) => a + s.ethOut - s.ethIn, 0))} ETH net)` : ''}.
+            covers the ledger&rsquo;s tracked window; buys older than that show as &ldquo;partial&rdquo;. Stablecoin and WETH legs are excluded from P&amp;L.
           </p>
         </div>
       </div>
