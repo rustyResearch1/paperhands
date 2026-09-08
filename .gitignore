@@ -11,3 +11,8 @@ dist/
 coverage/
 content/
 backups/
+
+# SQLite ledger and sidecars live on the volume, never in git
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
