@@ -11,9 +11,9 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 - [ ] Mobile layout pass (bottom tab nav in; tables scroll; verify on a phone)
 
 ## Stage B — Wallet connect (read-only)
-- [ ] wagmi + injected connector, chain config for 4663
-- [ ] Real portfolio: ETH + tracked token balances, valued by pool-would-pay
-- [ ] Real LP positions (v3 NFPM): range, in-range?, fees owed, IL vs hodl
+- [x] wagmi + injected connector, chain config for 4663
+- [x] Real portfolio: ETH + tracked token balances, valued by pool-would-pay
+- [x] Real LP positions (v3 NFPM): range, in-range?, fees owed (IL vs hodl: later)
 
 ## Stage C — Real execution (non-custodial, user signs)
 - [ ] Approvals flow (ERC20 → router / position manager)

@@ -36,6 +36,18 @@ export interface RouteQuote {
 
 type Overrides = Map<string, V3PoolState>
 
+/**
+ * Real execution currently signs through SwapRouter02, which speaks v3 only;
+ * 'v3' restricts routing to hookless v3 venues so a real quote is always a
+ * route the wallet can actually execute.
+ */
+export type Executable = 'v3'
+
+function executableVenue(v: Venue, ex?: Executable): boolean {
+  if (!ex) return true
+  return v.version === 3 && !v.hooked
+}
+
 function legZeroForOne(q: VenueQuote): boolean {
   return q.side === 'buy' ? !q.venue.baseIsToken0 : q.venue.baseIsToken0
 }
@@ -48,8 +60,14 @@ function midOutPerIn(q: VenueQuote, sqrt: bigint): number {
 
 const complete = (legs: VenueQuote[]) => legs.every((l) => l.fillRatio === 1 && !l.exhaustedWindow)
 
-async function bestBridge(side: 'buy' | 'sell', amountIn: bigint, fresh: boolean, ov: Overrides): Promise<VenueQuote | null> {
-  const bridges = ethUsdgVenues()
+async function bestBridge(
+  side: 'buy' | 'sell',
+  amountIn: bigint,
+  fresh: boolean,
+  ov: Overrides,
+  ex?: Executable,
+): Promise<VenueQuote | null> {
+  const bridges = ethUsdgVenues().filter((b) => executableVenue(b, ex))
   const quotes = await Promise.all(
     bridges.map((b) => quoteVenue(b, side, amountIn, { fresh, stateOverride: ov.get(b.pool) }).catch(() => null)),
   )
@@ -62,12 +80,13 @@ export async function bestFill(
   baseAddress: string,
   side: 'buy' | 'sell',
   amountIn: bigint,
-  opts: { fresh?: boolean; overrides?: Overrides; skipExit?: boolean } = {},
+  opts: { fresh?: boolean; overrides?: Overrides; skipExit?: boolean; executable?: Executable } = {},
 ): Promise<RouteQuote> {
   const fresh = opts.fresh ?? false
   const ov = opts.overrides ?? new Map()
-  const venues = venuesForBase(baseAddress)
-  if (venues.length === 0) throw new Error('no tradable venue for this token')
+  const ex = opts.executable
+  const venues = venuesForBase(baseAddress).filter((v) => executableVenue(v, ex))
+  if (venues.length === 0) throw new Error(ex ? 'no v3 venue for this token — real execution supports Uniswap v3 routes for now' : 'no tradable venue for this token')
   const direct = venues.filter((v) => v.quoteSymbol !== 'USDG')
   const viaUsdg = venues.filter((v) => v.quoteSymbol === 'USDG')
 
@@ -79,7 +98,7 @@ export async function bestFill(
 
   if (viaUsdg.length > 0) {
     if (side === 'buy') {
-      const leg1 = await bestBridge('buy', amountIn, fresh, ov) // ETH → USDG
+      const leg1 = await bestBridge('buy', amountIn, fresh, ov, ex) // ETH → USDG
       if (leg1) {
         const leg2s = await Promise.all(
           viaUsdg.map((v) => quoteVenue(v, 'buy', leg1.amountOut, { fresh, stateOverride: ov.get(v.pool) }).catch(() => null)),
@@ -92,7 +111,7 @@ export async function bestFill(
       )
       for (const leg1 of leg1s) {
         if (!leg1 || leg1.amountOut <= 0n) continue
-        const leg2 = await bestBridge('sell', leg1.amountOut, fresh, ov) // USDG → ETH
+        const leg2 = await bestBridge('sell', leg1.amountOut, fresh, ov, ex) // USDG → ETH
         if (leg2) routes.push([leg1, leg2])
       }
     }
@@ -150,7 +169,7 @@ export async function bestFill(
     const after: Overrides = new Map(ov)
     for (const l of legs) if (l.stateAfter) after.set(l.venue.pool, l.stateAfter)
     try {
-      const exit = await bestFill(baseAddress, 'sell', out.amountOut, { fresh: false, overrides: after, skipExit: true })
+      const exit = await bestFill(baseAddress, 'sell', out.amountOut, { fresh: false, overrides: after, skipExit: true, ...(ex ? { executable: ex } : {}) })
       out.instantExit = exit.amountOut
       // Mark the bag at the post-fill mid along the same path (base → ETH).
       const midAfter = legs.reduce((acc, l) => acc * midOutPerIn(l, l.sqrtAfter ?? l.sqrtBefore), 1)

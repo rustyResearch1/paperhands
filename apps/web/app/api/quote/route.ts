@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
   }
   if (amountIn <= 0n) return NextResponse.json({ error: 'amount must be positive' }, { status: 400 })
   try {
-    const q = await ticketQuote(pool, side, amountIn)
+    const real = req.nextUrl.searchParams.get('real') === '1'
+    const q = await ticketQuote(pool, side, amountIn, real ? { real: true } : {})
     return NextResponse.json(q)
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 })

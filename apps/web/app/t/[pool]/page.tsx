@@ -196,6 +196,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
               <div className="rise rise-2">
                 <TradeTicket
                   pool={pool}
+                  baseAddress={meta.baseAddress}
                   baseSymbol={meta.baseSymbol}
                   baseDecimals={meta.baseDecimals}
                   balanceWei={user.balance_quote}

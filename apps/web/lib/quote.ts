@@ -91,6 +91,10 @@ export interface TicketQuote {
     twoLeg: boolean
     /** Every leg quoted by our engine (false = a hooked pool quoted on-chain). */
     exact: boolean
+    /** Per-leg execution details (token addresses + fee), in swap order. */
+    exec: { version: number; pool: string; tokenIn: string; tokenOut: string; fee: number }[]
+    /** True when the wallet can sign this route as-is (v3-only, hookless). */
+    executable: boolean
   }
 }
 
@@ -116,11 +120,14 @@ export async function ticketQuote(
   pool: string,
   side: 'buy' | 'sell',
   amountIn: bigint,
-  opts: { fresh?: boolean } = {},
+  opts: { fresh?: boolean; real?: boolean } = {},
 ): Promise<TicketQuote> {
   const meta = poolMeta(pool)
   if (!meta) throw new Error('unknown or unpriced pool')
-  const r = await bestFill(meta.baseAddress, side, amountIn, { fresh: opts.fresh ?? false })
+  const r = await bestFill(meta.baseAddress, side, amountIn, {
+    fresh: opts.fresh ?? false,
+    ...(opts.real ? { executable: 'v3' as const } : {}),
+  })
 
   const legLabel = (v: { version: number; quoteSymbol: string; baseSymbol: string; fee: number; hooked: boolean }) =>
     `v${v.version} ${v.quoteSymbol}/${v.baseSymbol} ${v.fee >= 0x800000 ? 'dyn' : `${(v.fee / 10_000).toFixed(2)}%`}${v.hooked ? ' ⚓' : ''}`
@@ -146,6 +153,14 @@ export async function ticketQuote(
       hooked: r.baseVenue.hooked,
       twoLeg: r.twoLeg,
       exact: r.exact,
+      exec: r.legs.map((l) => ({
+        version: l.venue.version,
+        pool: l.venue.pool,
+        tokenIn: l.side === 'buy' ? l.venue.quoteAddress : l.venue.baseAddress,
+        tokenOut: l.side === 'buy' ? l.venue.baseAddress : l.venue.quoteAddress,
+        fee: l.venue.fee,
+      })),
+      executable: r.legs.every((l) => l.venue.version === 3 && !l.venue.hooked),
     },
   }
   if (r.instantExit !== undefined) out.instantExit = r.instantExit.toString()
