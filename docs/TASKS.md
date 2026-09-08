@@ -118,8 +118,15 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
       the same token within N minutes of a ranked wallet); token market cap on fills (needs total supply per token)
 
 ## User-side (needs your accounts / wallet)
-- [ ] Set `PAPERHANDS_RPC` on Railway to a dedicated Alchemy/QuickNode Robinhood Chain endpoint — production still runs on the
-      public RPC (rate limits + ~3k blocks of pinned state)
+- [ ] Set `PAPERHANDS_RPC` on Railway to a dedicated Robinhood Chain endpoint — production still runs on the public RPC
+      (rate limits + ~3k blocks of pinned state). Researched 2026-09-08: the watcher is a *sustained* consumer (~5 RPS steady with
+      batching, far more on catch-up), so credit-metered free tiers (Alchemy 30M CU/mo, QuickNode 10M credits, Dwellir 100k/day)
+      run out in days; dRPC's 210M CU/mo lasts weeks at most. **OrbitFlare** is the only free plan with no monthly cap (10 RPS,
+      archive + WebSockets included) → `PAPERHANDS_RPC` = OrbitFlare Free now, Starter ($49/mo, 100 RPS) when the tape should
+      run at full chain activity; `PAPERHANDS_RPC_WEB` = dRPC free (bursty quote traffic, 210M CU is plenty). Alchemy is
+      Robinhood's official recommendation but its CU metering does not fit an indexer.
+- [ ] Watcher on the dedicated endpoint: measure real RPS against the plan's limit (does a JSON-RPC batch count as one request?),
+      then move attribution to batched `eth_getTransactionByHash` (100 per HTTP request) and pool-state reads to one multicall per tick
 - [ ] First real trade with your own wallet, small size: a v3 buy, a v4 hooked buy, a sell (Permit2 two-step), an LP mint + close.
       Every path is verified by eth_call, but no wallet has signed through the UI yet
 - [ ] Set `NEXT_PUBLIC_SITE_URL` + an OG image; create the GitHub repo and the X account (docs/LAUNCH.md)
