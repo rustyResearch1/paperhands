@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import AlertsFeed from '@/components/AlertsFeed'
+import WalletSearch from '@/components/WalletSearch'
 import { marketAlerts } from '@/lib/alerts'
 import { timeAgo } from '@/lib/format'
 import { topTraders } from '@/lib/wire'
@@ -18,9 +19,12 @@ export default function Wire() {
   }
   return (
     <div className="space-y-5">
-      <div className="rise">
-        <h1 className="text-[28px] font-semibold tracking-tight">Wire</h1>
-        <p className="text-muted">Real wallets, ranked by ETH actually taken out of pools — marked bags don&rsquo;t count.</p>
+      <div className="rise flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[28px] font-semibold tracking-tight">Wire</h1>
+          <p className="text-muted">Real wallets, ranked by ETH actually taken out of pools — marked bags don&rsquo;t count. Open any wallet for its swaps and true P&amp;L.</p>
+        </div>
+        <WalletSearch />
       </div>
 
       <div className="rise rise-1">

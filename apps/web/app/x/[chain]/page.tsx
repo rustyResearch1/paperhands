@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import WalletSearch from '@/components/WalletSearch'
 import XSearch from '@/components/XSearch'
 import { formatPct, formatUsd } from '@/lib/format'
 import { isXChain } from '@/lib/x'
@@ -39,7 +40,10 @@ export default async function XMarkets({ params }: { params: Promise<{ chain: st
             {chain === 'sol' ? 'Jupiter over every Solana DEX' : 'PancakeSwap v3 through our exact engine, KyberSwap when it fills better'} — and the ticket shows what selling right back would return.
           </p>
         </div>
-        <XSearch chain={chain} />
+        <div className="flex flex-col gap-2 md:items-end">
+          <XSearch chain={chain} />
+          {chain === 'bsc' && <WalletSearch chain="bsc" placeholder="Paste a BNB Chain wallet for its swaps + P&L…" />}
+        </div>
       </div>
 
       <div className="card rise rise-2 overflow-hidden">

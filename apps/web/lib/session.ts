@@ -52,14 +52,21 @@ export async function getOrCreateUser(): Promise<UserRow> {
     // ephemeral identity that is never persisted.
     return { id: '__ephemeral', handle: null, created_ts: 0, balance_quote: STARTING_BANKROLL_WEI }
   }
-  let row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
-  if (!row) {
-    db.prepare('INSERT OR IGNORE INTO users(id, handle, created_ts, balance_quote) VALUES(?, NULL, ?, ?)').run(
-      id,
-      Math.floor(Date.now() / 1000),
-      STARTING_BANKROLL_WEI,
-    )
-    row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow
+  try {
+    let row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
+    if (!row) {
+      db.prepare('INSERT OR IGNORE INTO users(id, handle, created_ts, balance_quote) VALUES(?, NULL, ?, ?)').run(
+        id,
+        Math.floor(Date.now() / 1000),
+        STARTING_BANKROLL_WEI,
+      )
+      row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow
+    }
+    return row
+  } catch (err) {
+    // The ledger is momentarily locked by the indexer: render the page with a
+    // read-only identity rather than a 500. Trades retry on the next request.
+    console.warn('session: ledger busy, serving ephemeral identity —', (err as Error).message)
+    return { id: '__ephemeral', handle: null, created_ts: 0, balance_quote: STARTING_BANKROLL_WEI }
   }
-  return row
 }

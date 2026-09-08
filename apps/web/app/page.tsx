@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import CopyAddress from '@/components/CopyAddress'
 import { formatPct, formatPrice, formatUsd } from '@/lib/format'
 import { pctChange, quoteDepth, screenerRows, type GroupedRow, type ScreenerSort } from '@/lib/screener'
 import { ethUsdRate } from '@/lib/usd'
@@ -121,18 +122,21 @@ export default async function Markets({
                   return (
                     <tr key={r.baseAddr}>
                       <td>
-                        <Link href={`/t/${r.address}`} className="flex items-center gap-3">
-                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bg-3 text-[12px] font-bold text-muted">
-                            {r.baseSymbol.slice(0, 2).toUpperCase()}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block font-semibold leading-tight">{r.baseSymbol}</span>
-                            <span className="block max-w-28 truncate text-[12px] text-muted md:max-w-44">
-                              {r.baseName}
-                              {r.poolCount > 1 ? ` · ${r.poolCount} pools` : ''}
+                        <span className="flex items-center gap-2">
+                          <Link href={`/t/${r.address}`} className="flex items-center gap-3">
+                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bg-3 text-[12px] font-bold text-muted">
+                              {r.baseSymbol.slice(0, 2).toUpperCase()}
                             </span>
-                          </span>
-                        </Link>
+                            <span className="min-w-0">
+                              <span className="block font-semibold leading-tight">{r.baseSymbol}</span>
+                              <span className="block max-w-28 truncate text-[12px] text-muted md:max-w-44">
+                                {r.baseName}
+                                {r.poolCount > 1 ? ` · ${r.poolCount} pools` : ''}
+                              </span>
+                            </span>
+                          </Link>
+                          <CopyAddress address={r.baseAddr} label="CA" className="hidden !h-6 !px-2 !text-[11px] md:inline-flex" />
+                        </span>
                       </td>
                       <td>{price(r)}</td>
                       <td>

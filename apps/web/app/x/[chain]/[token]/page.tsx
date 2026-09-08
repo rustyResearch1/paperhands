@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import BscLpCard from '@/components/BscLpCard'
+import CopyAddress from '@/components/CopyAddress'
 import SolLpCard from '@/components/SolLpCard'
 import XChart from '@/components/XChart'
 import XTicket from '@/components/XTicket'
@@ -50,6 +51,7 @@ export default async function XTokenPage({ params }: { params: Promise<{ chain: 
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+          <CopyAddress address={meta.address} label="CA" />
           <span className="pill">liquidity {formatUsd(liquidity)}</span>
           <span className="pill">vol 24h {formatUsd(vol24)}</span>
           {info?.fdvUsd ? <span className="pill">FDV {formatUsd(info.fdvUsd)}</span> : null}

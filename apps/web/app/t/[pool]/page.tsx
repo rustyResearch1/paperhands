@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Chart from '@/components/Chart'
+import CopyAddress from '@/components/CopyAddress'
 import DepthCurve from '@/components/DepthCurve'
 import HookCard from '@/components/HookCard'
 import LpLab from '@/components/LpLab'
@@ -125,6 +126,7 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+          <CopyAddress address={meta.baseAddress} label="CA" />
           <span className="pill">depth {depth.toLocaleString('en-US', { maximumFractionDigits: 1 })} {meta.quoteSymbol}</span>
           <span className="pill">vol 24h {vol24.toLocaleString('en-US', { maximumFractionDigits: 1 })} {meta.quoteSymbol}</span>
           <span className="pill">{poolRow.swap_count.toLocaleString()} swaps</span>

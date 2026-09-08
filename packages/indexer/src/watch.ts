@@ -208,14 +208,32 @@ const CURSOR_KEY = 'watch_cursor'
  * (they're small and power every chart). The replay floor moves with the
  * oldest retained swap so reconstruction stays consistent.
  */
-function pruneOldRows(db: Database.Database, nowSec: number) {
+/**
+ * Retention prune in small batches: one giant DELETE holds the write lock for
+ * minutes on a big ledger and every web request that needs to write (a new
+ * session, a paper trade) stalls behind it. 20k rows per statement keeps
+ * each lock under ~100ms; the loop yields between batches.
+ */
+async function pruneOldRows(db: Database.Database, nowSec: number) {
   const days = Number(process.env.PAPERHANDS_RETAIN_DAYS ?? 7)
   const cutoff = nowSec - days * 86400
-  const swaps = db.prepare('DELETE FROM swaps WHERE ts < ?').run(cutoff).changes
+  const batch = 20_000
+  let swaps = 0
+  for (;;) {
+    const n = db.prepare('DELETE FROM swaps WHERE rowid IN (SELECT rowid FROM swaps WHERE ts < ? LIMIT ?)').run(cutoff, batch).changes
+    swaps += n
+    if (n < batch) break
+    await new Promise((r) => setTimeout(r, 50))
+  }
   const floor = (db.prepare('SELECT MIN(block) AS b FROM swaps').get() as { b: number | null }).b
   let liq = 0
   if (floor) {
-    liq = db.prepare('DELETE FROM liq_events WHERE block < ?').run(floor).changes
+    for (;;) {
+      const n = db.prepare('DELETE FROM liq_events WHERE rowid IN (SELECT rowid FROM liq_events WHERE block < ? LIMIT ?)').run(floor, batch).changes
+      liq += n
+      if (n < batch) break
+      await new Promise((r) => setTimeout(r, 50))
+    }
     const cur = Number(getMeta(db, 'liq_from') ?? 0)
     if (floor > cur) setMeta(db, 'liq_from', String(floor))
   }
@@ -283,7 +301,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         const nowSec = Math.floor(Date.now() / 1000)
         if (nowSec - Number(getMeta(db, 'last_prune_ts') ?? 0) > 24 * 3600) {
           setMeta(db, 'last_prune_ts', String(nowSec))
-          pruneOldRows(db, nowSec)
+          await pruneOldRows(db, nowSec)
         }
         if (nowSec - lastBackup > 6 * 3600) {
           lastBackup = nowSec
