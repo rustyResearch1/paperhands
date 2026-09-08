@@ -287,6 +287,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
   const bootGrace = Math.floor(Date.now() / 1000) + (wireEmpty ? 0 : 120)
   let lastValidate = 0
   let lastScreener = 0
+  let failures = 0
   // Catch-up chunk adapts to what the RPC will actually serve: a failed
   // tick halves it, a clean tick grows it back — a wedged loop that never
   // advances the cursor is worse than a slow one.
@@ -372,11 +373,19 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
           )
         }
       }
+      failures = 0
     } catch (err) {
       if (chunk > 500n) chunk /= 2n
-      console.error(`watch: tick failed (chunk→${chunk}), retrying —`, (err as Error).message.split('\n')[0])
+      failures++
+      const e = err as { message: string; status?: number; details?: string }
+      const why = [e.message.split('\n')[0], e.status ? `HTTP ${e.status}` : '', e.details?.slice(0, 80) ?? ''].filter(Boolean).join(' · ')
+      console.error(`watch: tick failed ×${failures} (chunk→${chunk}), retrying — ${why}`)
     }
     // A dedicated RPC turns the watcher into a live tape: a few blocks per tick, every few seconds.
-    await new Promise((r) => setTimeout(r, opts.pollMs ?? (hasDedicatedRpc() ? 2500 : 6000)))
+    // Consecutive failures back off (6s → 12s → … → 60s): hammering a node that is refusing us only
+    // keeps us refused, and the public RPC's limiter is per-minute.
+    const base = opts.pollMs ?? (hasDedicatedRpc() ? 2500 : 6000)
+    const wait = failures > 0 ? Math.min(60_000, 6000 * 2 ** (failures - 1)) : base
+    await new Promise((r) => setTimeout(r, wait))
   }
 }

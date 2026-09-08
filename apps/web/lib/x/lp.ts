@@ -1,4 +1,5 @@
 import { v3PoolAbi } from '@paperhands/chain'
+import { swr } from '../swr'
 import type { Address } from 'viem'
 import { db } from '../db'
 import { suggestRanges } from '../lpstrategy'
@@ -309,7 +310,12 @@ export interface LpScreen {
  * All venues, one ranking. σ is fetched for the top `sigmaFor` rows by fee
  * yield (GeckoTerminal is rate-limited), the rest show yield without a score.
  */
-export async function lpScreen(chains: XChain[] = ['rh', 'sol', 'bsc'], perSource = 20, sigmaFor = 18): Promise<LpScreen> {
+export function lpScreen(chains: XChain[] = ['rh', 'sol', 'bsc'], perSource = 20, sigmaFor = 18): Promise<LpScreen> {
+  // Two minutes fresh; a stale screen is served instantly while one refresh runs behind it.
+  return swr(`lp:${[...chains].sort().join(',')}:${perSource}:${sigmaFor}`, 2 * 60_000, () => computeLpScreen(chains, perSource, sigmaFor))
+}
+
+async function computeLpScreen(chains: XChain[], perSource: number, sigmaFor: number): Promise<LpScreen> {
   const errors: string[] = []
   const sources: Promise<LpPoolRow[]>[] = []
   if (chains.includes('rh')) sources.push(rhLpPools(perSource))

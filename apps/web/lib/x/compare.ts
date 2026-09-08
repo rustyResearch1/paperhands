@@ -1,4 +1,5 @@
 import { db } from '../db'
+import { swr } from '../swr'
 import { ethUsdRate } from '../usd'
 import { simplePriceUsd } from './gecko'
 import { xquote, xtoken } from './index'
@@ -48,8 +49,6 @@ export interface CompareRow {
   best: XChain | null
 }
 
-const cache = new Map<number, { at: number; rows: CompareRow[]; nativeUsd: Record<XChain, number | null> }>()
-
 export async function nativePrices(): Promise<Record<XChain, number | null>> {
   const [solPx, bnbPx] = await Promise.all([
     fetch(`https://lite-api.jup.ag/price/v3?ids=${NATIVE.sol.address}`, { cache: 'no-store' })
@@ -91,9 +90,12 @@ async function tokenPricesUsd(chain: XChain, tokens: string[]): Promise<Record<s
   return out
 }
 
-export async function compareAcrossChains(usd: number): Promise<{ rows: CompareRow[]; nativeUsd: Record<XChain, number | null> }> {
-  const hit = cache.get(usd)
-  if (hit && Date.now() - hit.at < 60_000) return hit
+/** Fresh for a minute; a stale table is served instantly while one refresh runs behind it. */
+export function compareAcrossChains(usd: number): Promise<{ rows: CompareRow[]; nativeUsd: Record<XChain, number | null> }> {
+  return swr(`compare:${usd}`, 60_000, () => computeCompare(usd))
+}
+
+async function computeCompare(usd: number): Promise<{ rows: CompareRow[]; nativeUsd: Record<XChain, number | null> }> {
   const nativeUsd = await nativePrices()
   const chains: XChain[] = ['rh', 'sol', 'bsc']
   const priceMaps = Object.fromEntries(
@@ -142,7 +144,5 @@ export async function compareAcrossChains(usd: number): Promise<{ rows: CompareR
       return { asset, cells, best }
     }),
   )
-  const value = { rows, nativeUsd }
-  cache.set(usd, { at: Date.now(), ...value })
-  return value
+  return { rows, nativeUsd }
 }
