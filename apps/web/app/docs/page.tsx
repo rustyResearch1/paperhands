@@ -3,8 +3,8 @@ export const metadata = { title: 'PaperHands API' }
 const ENDPOINTS = [
   {
     path: '/api/v1/quote',
-    params: 'token, side=buy|sell, amount (raw units: ETH wei for buys, token units for sells), real=1 (v3-executable routes only)',
-    what: 'Best-fill route across every venue a token has — v3 tiers, v4 pools, 2-leg via USDG. Exact engine math (validated wei-for-wei against the on-chain quoters). Returns amounts, impact, price move, instant-exit, markInflation and per-leg execution details.',
+    params: 'token, side=buy|sell, amount (raw units: ETH wei for buys, token units for sells), real=1 (only routes one wallet transaction can sign: hookless v3 via SwapRouter02, or all-v4 via the Universal Router)',
+    what: 'Best-fill route across every venue a token has — v3 tiers, v4 pools (hooked ones through the on-chain quoter), 2-leg via USDG. Exact engine math (validated wei-for-wei against the on-chain quoters). Returns amounts, impact, price move, instant-exit, markInflation and per-leg execution details including v4 pool keys.',
     example: '/api/v1/quote?token=0xd7321801caae694090694ff55a9323139f043b88&side=buy&amount=1000000000000000000',
   },
   {
@@ -30,6 +30,12 @@ const ENDPOINTS = [
     params: 'pool (v3 hookless), range (± %), eth (deposit), hours',
     what: 'LP backtest: your position is added to the pool and every recorded swap re-executes through it. Fees earned, impermanent loss, net vs holding, APR run-rate.',
     example: '/api/v1/lp?pool=0x588b0785f50063260003b7790c42f1ef74902746&range=30&eth=1&hours=24',
+  },
+  {
+    path: '/api/v1/alerts',
+    params: 'limit (≤100)',
+    what: 'What changed a position’s truth in the last few hours: liquidity pulled (≥50% of active depth in one transaction), dumps (−50% in 3h with real volume) and volume surges (≥4× the previous half hour). Straight from the ledger, no opinions.',
+    example: '/api/v1/alerts?limit=20',
   },
 ]
 

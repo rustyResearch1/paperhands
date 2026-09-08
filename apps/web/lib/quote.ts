@@ -1,7 +1,7 @@
 import { readPoolState, type PoolStateSnapshot } from '@paperhands/indexer'
 import { chainClient as client } from './chain'
 import { db } from './db'
-import { bestFill } from './route'
+import { bestFill, walletSignable } from './route'
 
 export { chainClient } from './chain'
 
@@ -20,6 +20,7 @@ export interface PoolMeta {
   version: number
   quoteSymbol: string
   hooked: boolean
+  hooks: string | null
   baseSymbol: string
   baseDecimals: number
   baseAddress: string
@@ -91,9 +92,9 @@ export interface TicketQuote {
     twoLeg: boolean
     /** Every leg quoted by our engine (false = a hooked pool quoted on-chain). */
     exact: boolean
-    /** Per-leg execution details (token addresses + fee), in swap order. */
-    exec: { version: number; pool: string; tokenIn: string; tokenOut: string; fee: number }[]
-    /** True when the wallet can sign this route as-is (v3-only, hookless). */
+    /** Per-leg execution details (token addresses, fee, v4 pool key), in swap order. */
+    exec: { version: number; pool: string; tokenIn: string; tokenOut: string; fee: number; tickSpacing: number; hooks: string }[]
+    /** True when one wallet transaction can sign this route (hookless v3, or all-v4). */
     executable: boolean
   }
 }
@@ -126,7 +127,7 @@ export async function ticketQuote(
   if (!meta) throw new Error('unknown or unpriced pool')
   const r = await bestFill(meta.baseAddress, side, amountIn, {
     fresh: opts.fresh ?? false,
-    ...(opts.real ? { executable: 'v3' as const } : {}),
+    ...(opts.real ? { executable: 'wallet' as const } : {}),
   })
 
   const legLabel = (v: { version: number; quoteSymbol: string; baseSymbol: string; fee: number; hooked: boolean }) =>
@@ -159,8 +160,10 @@ export async function ticketQuote(
         tokenIn: l.side === 'buy' ? l.venue.quoteAddress : l.venue.baseAddress,
         tokenOut: l.side === 'buy' ? l.venue.baseAddress : l.venue.quoteAddress,
         fee: l.venue.fee,
+        tickSpacing: l.venue.tickSpacing,
+        hooks: l.venue.hooks,
       })),
-      executable: r.legs.every((l) => l.venue.version === 3 && !l.venue.hooked),
+      executable: walletSignable(r.legs),
     },
   }
   if (r.instantExit !== undefined) out.instantExit = r.instantExit.toString()

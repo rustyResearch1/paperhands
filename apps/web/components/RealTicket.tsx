@@ -2,10 +2,10 @@
 
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { UNISWAP, EXPLORER_URL, WETH, erc20Abi, erc20WriteAbi } from '@paperhands/chain'
+import { UNISWAP, EXPLORER_URL, erc20Abi, erc20WriteAbi, permit2Abi } from '@paperhands/chain'
 import { maxUint256, type Address } from 'viem'
 import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
-import { buildSwap, minOutFrom, type ExecLeg } from '@/lib/execute'
+import { MAX_UINT160, PERMIT2_EXPIRY_SECONDS, buildRouteSwap, minOutFrom, routerFor, type ExecLeg } from '@/lib/execute'
 import { formatBps, formatEth, formatPrice, formatQty } from '@/lib/format'
 
 interface TicketQuote {
@@ -35,8 +35,10 @@ interface Props {
 const SLIPPAGE_BPS = 100
 
 /**
- * Real order sheet: same exact quote as practice, restricted to routes the
- * wallet can sign through SwapRouter02. Approve (sells) → sign → mined.
+ * Real order sheet: same exact quote as practice, restricted to routes one
+ * wallet transaction can sign — hookless v3 through SwapRouter02, v4 through
+ * the Universal Router. Sells need an allowance first: a plain ERC20 approve
+ * for v3, or ERC20 → Permit2 plus a Permit2 grant to the router for v4.
  */
 export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals }: Props) {
   const { address, isConnected, chainId } = useAccount()
@@ -59,12 +61,27 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address), refetchInterval: 15_000 },
   })
-  const allowance = useReadContract({
+  const sellQuery = { enabled: Boolean(address) && side === 'sell' }
+  const allowanceV3 = useReadContract({
     address: baseAddress as Address,
     abi: erc20WriteAbi,
     functionName: 'allowance',
     args: address ? [address, UNISWAP.swapRouter02] : undefined,
-    query: { enabled: Boolean(address) && side === 'sell' },
+    query: sellQuery,
+  })
+  const allowanceP2 = useReadContract({
+    address: baseAddress as Address,
+    abi: erc20WriteAbi,
+    functionName: 'allowance',
+    args: address ? [address, UNISWAP.permit2] : undefined,
+    query: sellQuery,
+  })
+  const permit2 = useReadContract({
+    address: UNISWAP.permit2,
+    abi: permit2Abi,
+    functionName: 'allowance',
+    args: address ? [address, baseAddress as Address, UNISWAP.universalRouter] : undefined,
+    query: sellQuery,
   })
   const held = (tokenBal.data as bigint | undefined) ?? 0n
 
@@ -107,9 +124,12 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
   useEffect(() => {
     if (approveRcpt.isSuccess) {
       setStage('idle')
-      allowance.refetch()
+      allowanceV3.refetch()
+      allowanceP2.refetch()
+      permit2.refetch()
     }
-  }, [approveRcpt.isSuccess, allowance])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approveRcpt.isSuccess])
   useEffect(() => {
     if (swapRcpt.isSuccess) {
       setStage('idle')
@@ -120,20 +140,46 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
   }, [swapRcpt.isSuccess, address, qc, ethBal, tokenBal])
 
   const amount = rawAmount()
-  const needsApproval = side === 'sell' && ((allowance.data as bigint | undefined) ?? 0n) < amount
+  const router = quote?.route ? routerFor(quote.route.exec) : null
+  const nowSec = Math.floor(Date.now() / 1000)
+  const p2 = permit2.data as readonly [bigint, number, number] | undefined
+  // Which allowance is missing for a sell, in the order they must be granted.
+  const approvalStep: null | 'v3' | 'permit2-erc20' | 'permit2-router' =
+    side !== 'sell' || amount <= 0n || !router
+      ? null
+      : router === 'v3'
+        ? ((allowanceV3.data as bigint | undefined) ?? 0n) < amount
+          ? 'v3'
+          : null
+        : ((allowanceP2.data as bigint | undefined) ?? 0n) < amount
+          ? 'permit2-erc20'
+          : !p2 || p2[0] < amount || p2[1] <= nowSec
+            ? 'permit2-router'
+            : null
+  const needsApproval = approvalStep !== null
   const blocked = Boolean(quote && (quote.fillRatio < 1 || quote.exhaustedWindow || !quote.route?.executable))
   const wrongChain = isConnected && chainId !== 4663
 
   async function onApprove() {
+    if (!approvalStep) return
     setStage('approving')
     setError(null)
     try {
-      await approve.writeContractAsync({
-        address: baseAddress as Address,
-        abi: erc20WriteAbi,
-        functionName: 'approve',
-        args: [UNISWAP.swapRouter02, maxUint256],
-      })
+      if (approvalStep === 'permit2-router') {
+        await approve.writeContractAsync({
+          address: UNISWAP.permit2,
+          abi: permit2Abi,
+          functionName: 'approve',
+          args: [baseAddress as Address, UNISWAP.universalRouter, MAX_UINT160, nowSec + PERMIT2_EXPIRY_SECONDS],
+        })
+      } else {
+        await approve.writeContractAsync({
+          address: baseAddress as Address,
+          abi: erc20WriteAbi,
+          functionName: 'approve',
+          args: [approvalStep === 'v3' ? UNISWAP.swapRouter02 : UNISWAP.permit2, maxUint256],
+        })
+      }
     } catch (e) {
       setStage('idle')
       setError((e as Error).message.split('\n')[0] ?? 'Approval rejected')
@@ -145,14 +191,14 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
     setStage('swapping')
     setError(null)
     try {
-      const tx = buildSwap({
+      const tx = buildRouteSwap({
         side,
         legs: quote.route.exec,
         amountIn: BigInt(quote.amountIn),
         minOut: minOutFrom(BigInt(quote.amountOut), SLIPPAGE_BPS),
         recipient: address,
       })
-      await swap.writeContractAsync({ address: tx.address, abi: tx.abi, functionName: tx.functionName, args: tx.args as never, value: tx.value })
+      await swap.writeContractAsync({ address: tx.address, abi: tx.abi, functionName: tx.functionName, args: tx.args, value: tx.value } as never)
     } catch (e) {
       setStage('idle')
       setError((e as Error).message.split('\n')[0] ?? 'Transaction rejected')
@@ -244,7 +290,10 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
               <Row label="Sold right back" value={`${formatEth(BigInt(quote.instantExit))} ETH · ${(retention * 100).toFixed(1)}%`} valueClass={retention < 0.9 ? 'text-down' : 'text-muted'} />
             )}
             {quote.route && !quote.route.executable && (
-              <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">This token&rsquo;s best route uses a v4 or hook pool — real execution supports Uniswap v3 routes for now.</p>
+              <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">This route mixes v3 and v4 legs — no single transaction can sign it. Try a different size.</p>
+            )}
+            {quote.route?.hooked && (
+              <p className="rounded-xl bg-warn-soft px-3 py-2 text-[13px] text-warn">Hook pool: this fill comes from the on-chain quoter, and the hook can still refuse the real swap. Your wallet will show a failed simulation if so.</p>
             )}
             {(quote.fillRatio < 1 || quote.exhaustedWindow) && (
               <p className="rounded-xl bg-down-soft px-3 py-2 text-[13px] font-semibold text-down">The pool can&rsquo;t absorb this size — only {(quote.fillRatio * 100).toFixed(1)}% fills.</p>
@@ -266,7 +315,13 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
 
       {needsApproval ? (
         <button onClick={onApprove} disabled={busy || wrongChain || amount <= 0n} className="btn btn-pen mt-5 w-full">
-          {busy ? 'Approving…' : `Approve ${baseSymbol} for the router`}
+          {busy
+            ? 'Approving…'
+            : approvalStep === 'permit2-router'
+              ? `Allow the router to spend ${baseSymbol} · Permit2, 30 days`
+              : approvalStep === 'permit2-erc20'
+                ? `Approve ${baseSymbol} for Permit2 · step 1 of 2`
+                : `Approve ${baseSymbol} for the router`}
         </button>
       ) : (
         <button onClick={onSwap} disabled={busy || wrongChain || !quote || blocked || amount <= 0n} className={`btn mt-5 w-full ${side === 'buy' ? 'btn-primary' : 'btn-danger'}`}>
@@ -274,7 +329,7 @@ export default function RealTicket({ pool, baseAddress, baseSymbol, baseDecimals
         </button>
       )}
       <p className="mt-2 text-center text-[12px] text-faint">
-        Signed by your wallet through Uniswap SwapRouter02 · WETH {WETH.slice(0, 6)}… · we never hold funds.
+        Signed by your wallet through Uniswap&rsquo;s {router === 'v4' ? 'Universal Router (v4)' : 'SwapRouter02 (v3)'} · we never hold funds.
       </p>
     </div>
   )

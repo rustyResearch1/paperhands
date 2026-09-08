@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import AlertsFeed from '@/components/AlertsFeed'
+import { marketAlerts } from '@/lib/alerts'
 import { timeAgo } from '@/lib/format'
 import { topTraders } from '@/lib/wire'
 
@@ -8,11 +10,21 @@ const fmt = (n: number, d = 2) => n.toLocaleString('en-US', { maximumFractionDig
 
 export default function Wire() {
   const rows = topTraders(50, 5)
+  let alerts: ReturnType<typeof marketAlerts> = []
+  try {
+    alerts = marketAlerts(20)
+  } catch {
+    // alerts are a bonus; the wire must render without them
+  }
   return (
     <div className="space-y-5">
       <div className="rise">
         <h1 className="text-[28px] font-semibold tracking-tight">Wire</h1>
         <p className="text-muted">Real wallets, ranked by ETH actually taken out of pools — marked bags don&rsquo;t count.</p>
+      </div>
+
+      <div className="rise rise-1">
+        <AlertsFeed alerts={alerts} />
       </div>
 
       {rows.length === 0 ? (

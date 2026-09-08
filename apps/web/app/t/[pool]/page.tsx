@@ -2,10 +2,12 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Chart from '@/components/Chart'
 import DepthCurve from '@/components/DepthCurve'
+import HookCard from '@/components/HookCard'
 import LpLab from '@/components/LpLab'
 import TradeTicket from '@/components/TradeTicket'
 import { db } from '@/lib/db'
 import { formatEth, formatPct, formatPrice, formatQty, formatUsd, timeAgo } from '@/lib/format'
+import { classifyHook } from '@/lib/hooks'
 import { ethUsdRate } from '@/lib/usd'
 import { poolMeta, ticketQuote } from '@/lib/quote'
 import { quoteDepth } from '@/lib/screener'
@@ -211,10 +213,10 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
               <div className="rise rise-3">
                 {labReady ? (
                   <LpLab pool={pool} baseAddress={meta.baseAddress} baseSymbol={meta.baseSymbol} baseDecimals={meta.baseDecimals} />
+                ) : meta.hooked && meta.hooks ? (
+                  <HookCard hook={classifyHook(meta.hooks, meta.fee)} />
                 ) : (
-                  <p className="text-[12px] text-faint">
-                    LP backtests for {meta.hooked ? 'hook' : 'USDG-quoted'} pools are coming — trading routes through them already.
-                  </p>
+                  <p className="text-[12px] text-faint">LP backtests for USDG-quoted pools are coming — trading routes through them already.</p>
                 )}
               </div>
             </>

@@ -1,3 +1,4 @@
+import { WETH } from '@paperhands/chain'
 import type { V3PoolState } from '@paperhands/engine'
 import { ethUsdgVenues, quoteVenue, venuesForBase, type Venue, type VenueQuote } from './venues'
 
@@ -37,15 +38,26 @@ export interface RouteQuote {
 type Overrides = Map<string, V3PoolState>
 
 /**
- * Real execution currently signs through SwapRouter02, which speaks v3 only;
- * 'v3' restricts routing to hookless v3 venues so a real quote is always a
- * route the wallet can actually execute.
+ * Real execution signs hookless v3 routes through SwapRouter02 and v4 routes
+ * (hooked or not) through the Universal Router. 'wallet' restricts routing to
+ * venues one of those can sign, and keeps 2-leg routes inside one protocol
+ * version so a single transaction covers them. v4 venues holding ERC20 WETH
+ * are skipped: the wallet spends and receives native ETH.
  */
-export type Executable = 'v3'
+export type Executable = 'wallet'
+
+const wethLower = WETH.toLowerCase()
 
 function executableVenue(v: Venue, ex?: Executable): boolean {
   if (!ex) return true
-  return v.version === 3 && !v.hooked
+  if (v.version === 3) return !v.hooked
+  return v.token0 !== wethLower && v.token1 !== wethLower
+}
+
+/** Can one transaction sign this route? */
+export function walletSignable(legs: VenueQuote[]): boolean {
+  if (legs.length === 0) return false
+  return legs.every((l) => l.venue.version === 4) || legs.every((l) => l.venue.version === 3 && !l.venue.hooked)
 }
 
 function legZeroForOne(q: VenueQuote): boolean {
@@ -66,8 +78,9 @@ async function bestBridge(
   fresh: boolean,
   ov: Overrides,
   ex?: Executable,
+  version?: number,
 ): Promise<VenueQuote | null> {
-  const bridges = ethUsdgVenues().filter((b) => executableVenue(b, ex))
+  const bridges = ethUsdgVenues().filter((b) => executableVenue(b, ex) && (version === undefined || b.version === version))
   const quotes = await Promise.all(
     bridges.map((b) => quoteVenue(b, side, amountIn, { fresh, stateOverride: ov.get(b.pool) }).catch(() => null)),
   )
@@ -86,7 +99,7 @@ export async function bestFill(
   const ov = opts.overrides ?? new Map()
   const ex = opts.executable
   const venues = venuesForBase(baseAddress).filter((v) => executableVenue(v, ex))
-  if (venues.length === 0) throw new Error(ex ? 'no v3 venue for this token — real execution supports Uniswap v3 routes for now' : 'no tradable venue for this token')
+  if (venues.length === 0) throw new Error(ex ? 'no signable venue for this token — real execution covers hookless v3 and v4 pools' : 'no tradable venue for this token')
   const direct = venues.filter((v) => v.quoteSymbol !== 'USDG')
   const viaUsdg = venues.filter((v) => v.quoteSymbol === 'USDG')
 
@@ -98,10 +111,14 @@ export async function bestFill(
 
   if (viaUsdg.length > 0) {
     if (side === 'buy') {
-      const leg1 = await bestBridge('buy', amountIn, fresh, ov, ex) // ETH → USDG
-      if (leg1) {
+      // Wallet mode bridges per protocol version so both legs sign together.
+      const versions: (number | undefined)[] = ex ? [...new Set(viaUsdg.map((v) => v.version))] : [undefined]
+      for (const ver of versions) {
+        const leg1 = await bestBridge('buy', amountIn, fresh, ov, ex, ver) // ETH → USDG
+        if (!leg1) continue
+        const targets = ver === undefined ? viaUsdg : viaUsdg.filter((v) => v.version === ver)
         const leg2s = await Promise.all(
-          viaUsdg.map((v) => quoteVenue(v, 'buy', leg1.amountOut, { fresh, stateOverride: ov.get(v.pool) }).catch(() => null)),
+          targets.map((v) => quoteVenue(v, 'buy', leg1.amountOut, { fresh, stateOverride: ov.get(v.pool) }).catch(() => null)),
         )
         for (const q of leg2s) if (q && q.amountOut > 0n) routes.push([leg1, q])
       }
@@ -111,7 +128,7 @@ export async function bestFill(
       )
       for (const leg1 of leg1s) {
         if (!leg1 || leg1.amountOut <= 0n) continue
-        const leg2 = await bestBridge('sell', leg1.amountOut, fresh, ov, ex) // USDG → ETH
+        const leg2 = await bestBridge('sell', leg1.amountOut, fresh, ov, ex, ex ? leg1.venue.version : undefined) // USDG → ETH
         if (leg2) routes.push([leg1, leg2])
       }
     }

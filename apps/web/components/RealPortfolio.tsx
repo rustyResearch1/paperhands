@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useAccount, useConnect } from 'wagmi'
+import LpActions from '@/components/LpActions'
 import { formatEth, formatQty, formatUsd } from '@/lib/format'
 
 interface Holding {
@@ -21,8 +22,13 @@ interface Holdings {
 interface Lp {
   tokenId: string
   pool: string | null
+  token0: string
+  token1: string
   symbol0: string
   symbol1: string
+  decimals0: number
+  decimals1: number
+  liquidity: string
   fee: number
   tickLower: number
   tickUpper: number
@@ -132,6 +138,19 @@ export default function RealPortfolio({ usdRate }: { usdRate: number | null }) {
           <span className="label">Liquidity positions · Uniswap v3</span>
           <span className="text-[12px] text-faint">live amounts at the current price</span>
         </div>
+        {(() => {
+          const out = lp.data?.positions.filter((p) => p.currentTick !== null && !p.inRange && BigInt(p.liquidity) > 0n) ?? []
+          if (out.length === 0) return null
+          return (
+            <div className="mx-5 mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-2 text-[13px]">
+              <span className="pill pill-warn">out of range</span>
+              <span>
+                {out.length === 1 ? '1 position is' : `${out.length} positions are`} earning nothing right now — close or re-range{' '}
+                {out.map((p) => p.symbol0 + '/' + p.symbol1).join(', ')}.
+              </span>
+            </div>
+          )
+        })()}
         <div className="overflow-x-auto px-2 pb-2 pt-2">
           <table className="tbl">
             <thead>
@@ -142,12 +161,13 @@ export default function RealPortfolio({ usdRate }: { usdRate: number | null }) {
                 <th>Holds</th>
                 <th>Fees owed</th>
                 <th>Value</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {lp.data?.positions.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-muted">
+                  <td colSpan={7} className="text-center text-muted">
                     No v3 positions. Open one from any pool&rsquo;s LP Lab.
                   </td>
                 </tr>
@@ -171,19 +191,25 @@ export default function RealPortfolio({ usdRate }: { usdRate: number | null }) {
                     <span className={`pill ${p.inRange ? 'pill-up' : 'pill-warn'}`}>{p.currentTick === null ? 'unknown' : p.inRange ? 'in range' : 'out of range'}</span>
                   </td>
                   <td className="text-muted">
-                    {formatQty(BigInt(p.amount0), 18)} / {formatQty(BigInt(p.amount1), 18)}
+                    {formatQty(BigInt(p.amount0), p.decimals0)} / {formatQty(BigInt(p.amount1), p.decimals1)}
                   </td>
                   <td className="text-muted">
-                    {formatQty(BigInt(p.owed0), 18)} / {formatQty(BigInt(p.owed1), 18)}
+                    {formatQty(BigInt(p.owed0), p.decimals0)} / {formatQty(BigInt(p.owed1), p.decimals1)}
                   </td>
                   <td className="font-semibold">{p.valueQuote !== null ? `${p.valueQuote.toLocaleString('en-US', { maximumFractionDigits: 4 })} ${p.quoteSymbol}` : '—'}</td>
+                  <td>
+                    <LpActions p={p} hasFees={BigInt(p.owed0) > 0n || BigInt(p.owed1) > 0n} hasLiquidity={BigInt(p.liquidity) > 0n} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
-      <p className="text-[12px] text-faint">Read-only. Real swaps and LP actions sign from your wallet — nothing is custodied here.</p>
+      <p className="text-[12px] text-faint">
+        Every action is one signature from your wallet, straight to the Uniswap contracts — nothing is custodied here. Fees owed here are
+        exact; &ldquo;Holds&rdquo; is what the position would hand back at this second&rsquo;s price.
+      </p>
     </div>
   )
 }

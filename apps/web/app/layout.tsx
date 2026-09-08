@@ -13,9 +13,17 @@ const sans = Instrument_Sans({ subsets: ['latin'], weight: ['400', '500', '600',
 const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-plex' })
 
 export const metadata: Metadata = {
-  title: 'PaperHands — honest trading on Robinhood Chain',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://paperhands-production.up.railway.app'),
+  title: { default: 'PaperHands — honest trading on Robinhood Chain', template: '%s · PaperHands' },
   description:
     'Practice with a paper bankroll or trade for real from your own wallet — every fill simulated exactly through live Uniswap liquidity, every bag valued at what the pool would actually pay.',
+  openGraph: {
+    title: 'PaperHands — honest trading on Robinhood Chain',
+    description: 'Exact fills, honest PnL, whale replays, LP backtests. Practice or real, your wallet, no custody.',
+    siteName: 'PaperHands',
+    type: 'website',
+  },
+  twitter: { card: 'summary_large_image', title: 'PaperHands', description: 'Honest trading on Robinhood Chain — practice or real.' },
 }
 export const viewport: Viewport = { themeColor: '#ffffff', width: 'device-width', initialScale: 1 }
 

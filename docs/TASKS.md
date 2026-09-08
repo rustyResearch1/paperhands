@@ -18,15 +18,20 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 ## Stage C — Real execution (non-custodial, user signs)
 - [x] Approvals flow (ERC20 → router)
 - [x] Swap: v3 exactInputSingle / exactInput (2-leg via USDG) with our exact minOut
-- [ ] Swap: v4 single-hop via Universal Router (V4_SWAP: SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL)
-- [ ] LP mint: v3 NFPM.mint from strategy range; collect / decrease / burn
+- [x] Swap: v4 via Universal Router (V4_SWAP: SWAP_EXACT_IN_SINGLE / SWAP_EXACT_IN + SETTLE_ALL + TAKE_ALL), hooked pools included;
+      Permit2 two-step allowance for sells; wallet-signable routing keeps 2-leg routes inside one protocol version.
+      Verified by eth_call + estimateGas of the exact calldata (scripts/sim-real-swap.mts).
+- [x] LP mint: v3 NFPM.mint from strategy range
+- [x] LP collect (unwrap WETH → ETH, sweep token) and close (decrease + collect + burn) from the portfolio
 - [x] Honest pre-trade sheet: fill, impact, price move, instant-exit, route, minOut
+- [ ] v4 LP (PositionManager 0x58daec31…) — mint/collect/close for hookless v4 pools
 
 ## Stage D — LP strategy engine
-- [ ] Realized-vol range suggester (from candles) + expected fee APR from replay
-- [ ] Strategy templates: stock tight-range, 1% memecoin ±30%, full-range
-- [ ] Backtest card on every pool (24h/72h) with verdict
-- [ ] Out-of-range + rug-signal alerts feed
+- [x] Realized-vol range suggester (24h σ → tight/balanced/wide) + backtest on demand
+- [x] Strategy chips in the Lab (suggested ranges); templates implied by pool type
+- [x] Backtest card on every hookless ETH pool (3h/24h/72h) with verdict
+- [x] Alerts feed (Wire + /api/v1/alerts): liquidity pulled ≥50% in one tx, −50% dumps with real volume, ≥4× volume surges;
+      out-of-range strip on real LP positions
 
 ## Stage E — Public API v1
 - [x] /api/v1/quote (best route + legs), /api/v1/pools, /api/v1/depth (impact curve)
@@ -34,10 +39,11 @@ non-custodial execution, deep tech, pristine UI with ambient mathematical motion
 - [x] Rate limiting, /docs page
 
 ## Stage F — Deep tech
-- [ ] Depth/impact curve per pool (chart + API)
-- [ ] Hook classifier (permission flags → capabilities), shown on pool pages
+- [x] Depth/impact curve per pool (chart + API)
+- [x] Hook classifier (address permission bits → capabilities + risk), shown on hooked pool pages
 - [ ] Replay-validate on CI-ish schedule; validation badges on pools
 
 ## Stage G — Prod hardening
-- [ ] Error boundaries, empty/loading states, SEO/OG, analytics counters (replay runs)
+- [x] Error boundary, not-found, loading skeleton, OG/Twitter metadata
+- [ ] Analytics counters (replay runs, API hits)
 - [ ] README/docs refresh, deploy, smoke test on production

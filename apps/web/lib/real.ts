@@ -107,6 +107,8 @@ export interface LpPosition {
   token1: string
   symbol0: string
   symbol1: string
+  decimals0: number
+  decimals1: number
   fee: number
   tickLower: number
   tickUpper: number
@@ -177,6 +179,8 @@ export async function walletLpPositions(address: string): Promise<LpPosition[]> 
       token1: token1.toLowerCase(),
       symbol0: poolRow?.s0 ?? token0.slice(0, 6),
       symbol1: poolRow?.s1 ?? token1.slice(0, 6),
+      decimals0: poolRow?.d0 ?? 18,
+      decimals1: poolRow?.d1 ?? 18,
       fee,
       tickLower,
       tickUpper,

@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'amount must be an integer in raw units' }, { status: 400, headers: limitHeaders(rl) })
   }
   try {
-    const r = await bestFill(token, side, amountIn, q.get('real') === '1' ? { executable: 'v3' } : {})
+    const r = await bestFill(token, side, amountIn, q.get('real') === '1' ? { executable: 'wallet' } : {})
     return NextResponse.json(
       {
         token,

@@ -260,6 +260,7 @@ export const nfpmAbi = [
   { type: 'function', name: 'refundETH', stateMutability: 'payable', inputs: [], outputs: [] },
   { type: 'function', name: 'unwrapWETH9', stateMutability: 'payable', inputs: [{ type: 'uint256', name: 'amountMinimum' }, { type: 'address', name: 'recipient' }], outputs: [] },
   { type: 'function', name: 'sweepToken', stateMutability: 'payable', inputs: [{ type: 'address', name: 'token' }, { type: 'uint256', name: 'amountMinimum' }, { type: 'address', name: 'recipient' }], outputs: [] },
+  { type: 'function', name: 'burn', stateMutability: 'payable', inputs: [{ type: 'uint256', name: 'tokenId' }], outputs: [] },
 ] as const
 
 /** Uniswap SwapRouter02 — exact-input swaps, with ETH wrap/unwrap helpers. */

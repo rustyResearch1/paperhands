@@ -21,6 +21,17 @@ export const UNISWAP = {
   v4PoolManager: '0x8366a39cc670b4001a1121b8f6a443a643e40951' as Address,
   v4StateView: '0xf3334192d15450cdd385c8b70e03f9a6bd9e673b' as Address,
   v4Quoter: '0x8dc178efb8111bb0973dd9d722ebeff267c98f94' as Address,
+  /**
+   * Universal Router (v4-capable). Found as the `to` of live v4 swaps
+   * (selector 0x3593564c), verified 2026-09-07 against Uniswap's deployment
+   * docs and on-chain (poolManager() returns v4PoolManager above). Pulls
+   * ERC20 input through Permit2.
+   */
+  universalRouter: '0x8876789976decbfcbbbe364623c63652db8c0904' as Address,
+  /** Canonical Permit2 (same CREATE2 address on every chain); bytecode present on 4663. */
+  permit2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as Address,
+  /** v4 PositionManager (docs); not used yet — v4 LP actions are next. */
+  v4PositionManager: '0x58daec3116aae6d93017baaea7749052e8a04fa7' as Address,
 } as const
 
 export const WETH: Address = '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73'
