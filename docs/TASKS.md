@@ -94,6 +94,8 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] Ledger lock hardening: web `busy_timeout` 20s, ephemeral session instead of a 500 under lock, batched retention prune
 - [x] Profitable-wallets leaderboard: cost-basis P&L shared with the indexer (`packages/indexer/src/pnl.ts`), `wire_rank` carries
       realized P&L, win rate, wins/losses, best/worst token; Wire sorts by net flow / realized / win rate; wallet page won-on / lost-on
+- [x] Alerts precomputed by the watch loop too (the live query was 35s on the production ledger: `liq_events` had no block-leading
+      index — added `(kind, block)`); heavy indexer refreshes wait two minutes after boot so page loads get the CPU first
 - [x] Scalability without over-engineering: precomputed screener + rankings served even when stale; identical concurrent quotes
       coalesced; at most 8 RPC-heavy quotes in flight (`PAPERHANDS_QUOTE_CONCURRENCY`); per-bag valuation cache; RPC fallback
       transport (dedicated → public); SQLite WAL + 20s busy timeout + batched prune; per-IP rate limits; usage counters
