@@ -5,7 +5,7 @@ import { fetchLiqLogs, fetchSwapLogs, insertLiqEvents, resolvePool, type Decoded
 import { fetchV4Logs, fetchV4LiqForPool, registerV4Pool, resolveV4PoolById } from './discoverV4.js'
 import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
-import { getMeta, setMeta } from './db.js'
+import { getMeta, hasIndex, setMeta } from './db.js'
 import { refreshAlerts } from './alerts.js'
 import { refreshScreener } from './screener.js'
 import { BlockClock } from './timestamps.js'
@@ -188,6 +188,9 @@ export class Ingestor {
     // human units (by the quote token's own decimals), ETH weighted ×1000 so ETH- and
     // dollar-quoted pools rank together — a priority, not a displayed number. Only the
     // last ~15 minutes of blocks compete; the block index keeps this ~0.5s on a big ledger.
+    // `INDEXED BY` on a late index throws at prepare time while that index is
+    // still being built by the other process — which would wedge the tick.
+    const hint = hasIndex(this.db, 'swaps_block') ? 'INDEXED BY swaps_block' : ''
     const rows = this.db
       .prepare(
         `SELECT tx_hash FROM (
@@ -195,7 +198,7 @@ export class Ingestor {
                   MAX(ABS(CASE WHEN p.base_is_token0 = 1 THEN CAST(s.amount1 AS REAL) ELSE CAST(s.amount0 AS REAL) END)
                       / (CASE tq.decimals WHEN 6 THEN 1e6 WHEN 8 THEN 1e8 ELSE 1e18 END)
                       * (CASE WHEN COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH') THEN 1000 ELSE 1 END)) AS sz
-           FROM swaps s INDEXED BY swaps_block
+           FROM swaps s ${hint}
            JOIN pools p ON p.address = s.pool
            JOIN tokens tq ON tq.address = CASE WHEN p.base_is_token0 = 1 THEN p.token1 ELSE p.token0 END
            WHERE s.trader IS NULL AND p.base_is_token0 IS NOT NULL AND s.block > (SELECT MAX(block) FROM swaps) - 10000
@@ -263,6 +266,15 @@ async function pruneOldRows(db: Database.Database, nowSec: number) {
     if (floor > cur) setMeta(db, 'liq_from', String(floor))
   }
   if (swaps || liq) console.log(`prune: dropped ${swaps} swaps, ${liq} liq events (retain ${days}d)`)
+  // Truncate the WAL while we are the only writer; readers make this a no-op,
+  // which is fine — the next prune tries again.
+  try {
+    const rows = db.pragma('wal_checkpoint(TRUNCATE)') as { busy: number; log: number; checkpointed: number }[]
+    const r = rows[0]
+    if (r) console.log(`wal: checkpoint busy=${r.busy} pages=${r.log} checkpointed=${r.checkpointed}`)
+  } catch (err) {
+    console.warn('wal checkpoint skipped:', (err as Error).message)
+  }
 }
 const GAP_LIMIT = 150_000n // ~3h of blocks; beyond this, RPC state is pruned and catch-up is hopeless
 

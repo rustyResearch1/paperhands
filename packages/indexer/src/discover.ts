@@ -223,7 +223,10 @@ export async function resolvePool(
     return undefined
   }
 
-  let verified = false
+  // "Checked and it is not the canonical pool" and "could not check" are not the
+  // same thing: a 429 here must not brand a real pool unverified forever. On a
+  // failed read we give up on this pool for now; its next swap retries it.
+  let verified: boolean
   try {
     const canonical = await client.readContract({
       address: UNISWAP.v3Factory,
@@ -233,7 +236,7 @@ export async function resolvePool(
     })
     verified = canonical.toLowerCase() === pool.toLowerCase()
   } catch {
-    verified = false
+    return undefined
   }
 
   for (const t of [token0, token1]) {

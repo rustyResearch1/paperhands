@@ -62,6 +62,15 @@ export interface WireRankRow {
 }
 
 export function computeWireRank(db: Database.Database, limit = WIRE_RANK_ROWS, minTrades = WIRE_RANK_MIN_TRADES): WireRankRow[] {
+  return computeWireRankWithCloses(db, limit, minTrades).rows
+}
+
+/** One cost-basis replay per wallet feeds both the ranking and the closed-trade feed. */
+export function computeWireRankWithCloses(
+  db: Database.Database,
+  limit = WIRE_RANK_ROWS,
+  minTrades = WIRE_RANK_MIN_TRADES,
+): { rows: WireRankRow[]; closes: TradeClose[] } {
   const rows = db
     .prepare(
       `SELECT trader, COUNT(*) AS trades, SUM(eth > 0) AS buys, SUM(eth < 0) AS sells,
@@ -74,7 +83,7 @@ export function computeWireRank(db: Database.Database, limit = WIRE_RANK_ROWS, m
        ORDER BY netFlowEth DESC LIMIT @limit`,
     )
     .all({ min: minTrades, limit }) as Omit<WireRankRow, 'openMarkEth' | 'realizedEth' | 'winRate' | 'wins' | 'losses' | 'bestSymbol' | 'worstSymbol'>[]
-  if (rows.length === 0) return []
+  if (rows.length === 0) return { rows: [], closes: [] }
   const placeholders = rows.map(() => '?').join(',')
   const marks = db
     .prepare(
@@ -93,27 +102,36 @@ export function computeWireRank(db: Database.Database, limit = WIRE_RANK_ROWS, m
     const v = (m.netBaseRaw / 10 ** m.decimals) * m.close
     if (Number.isFinite(v) && v < 1e6) open.set(m.trader, (open.get(m.trader) ?? 0) + v)
   }
-  return rows.map((r) => {
-    const s = traderPnlSummary(replayTrader(db, r.trader).tokens)
+  const closes: TradeClose[] = []
+  const ranked = rows.map((r) => {
+    const replay = replayTrader(db, r.trader)
+    closes.push(...replay.closes)
+    const s = traderPnlSummary(replay.tokens)
     return { ...r, openMarkEth: open.get(r.trader) ?? 0, realizedEth: s.realized, winRate: s.winRate, wins: s.wins, losses: s.losses, bestSymbol: s.bestSymbol, worstSymbol: s.worstSymbol }
   })
+  return { rows: ranked, closes: pickCloses(closes) }
+}
+
+/** Pick the newest closes whose cost basis we actually saw. */
+function pickCloses(closes: TradeClose[], limit = 400): TradeClose[] {
+  // A sell of a bag bought before the ledger began has no honest P&L.
+  const real = closes.filter((c) => c.costOut > 0)
+  real.sort((a, b) => b.ts - a.ts)
+  return real.slice(0, limit)
 }
 
 /** The ranked wallets' most recent closed trades (sells with realized P&L), newest first. */
 export function computeClosedTrades(db: Database.Database, traders: string[], limit = 400): TradeClose[] {
   const all: TradeClose[] = []
-  // Only closes whose cost we actually saw — a sell of a bag bought before the ledger began has no honest P&L.
-  for (const t of traders) all.push(...replayTrader(db, t).closes.filter((c) => c.costOut > 0))
-  all.sort((a, b) => b.ts - a.ts)
-  return all.slice(0, limit)
+  for (const t of traders) all.push(...replayTrader(db, t).closes)
+  return pickCloses(all, limit)
 }
 
 /** Recompute and swap the table in one transaction; returns rows written. */
 export function refreshWireRank(db: Database.Database): number {
   ensureWireRank(db)
-  const rows = computeWireRank(db)
+  const { rows, closes } = computeWireRankWithCloses(db)
   try {
-    const closes = computeClosedTrades(db, rows.map((r) => r.trader))
     setMeta(db, CLOSED_META_KEY, JSON.stringify(closes))
     setMeta(db, CLOSED_TS_KEY, String(Math.floor(Date.now() / 1000)))
   } catch (err) {

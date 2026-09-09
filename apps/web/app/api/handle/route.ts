@@ -16,10 +16,19 @@ export async function POST(req: NextRequest) {
       { status: 422 },
     )
   }
+  if (user.id === '__ephemeral') {
+    return NextResponse.json({ ok: false, error: 'No session yet — reload the page and try again.' }, { status: 401 })
+  }
   try {
-    db.prepare('UPDATE users SET handle = ? WHERE id = ?').run(handle, user.id)
-  } catch {
-    return NextResponse.json({ ok: false, error: 'That handle is taken.' }, { status: 409 })
+    const r = db.prepare('UPDATE users SET handle = ? WHERE id = ?').run(handle, user.id)
+    if (r.changes !== 1) return NextResponse.json({ ok: false, error: 'No session yet — reload the page and try again.' }, { status: 401 })
+  } catch (err) {
+    const msg = (err as Error).message
+    if (/UNIQUE/i.test(msg)) return NextResponse.json({ ok: false, error: 'That handle is taken.' }, { status: 409 })
+    if (/SQLITE_BUSY|database is locked/i.test(msg)) {
+      return NextResponse.json({ ok: false, error: 'The ledger is busy — try again in a moment.' }, { status: 503 })
+    }
+    return NextResponse.json({ ok: false, error: 'Could not save that handle.' }, { status: 500 })
   }
   return NextResponse.json({ ok: true })
 }

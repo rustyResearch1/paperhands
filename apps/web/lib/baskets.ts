@@ -75,6 +75,14 @@ function closeAt(pool: string, ts: number): number | null {
   return r && r.close > 0 ? r.close : null
 }
 
+/** Basket + series together, cached: both walk the same candles. */
+export function basketView(address: string, days = 7): Promise<{ basket: Basket; series: BasketSeries }> {
+  return swr(`basket:${address.toLowerCase()}:${days}`, 60_000, async () => {
+    const basket = walletBasket(address)
+    return { basket, series: basketSeries(basket, days) }
+  })
+}
+
 export function walletBasket(address: string): Basket {
   const w = walletSummary(address)
   const now = Math.floor(Date.now() / 1000)
@@ -104,10 +112,16 @@ export function walletBasket(address: string): Basket {
 
 /** Hourly closes for a pool since `since`, last candle of each hour, oldest first. */
 function hourlyCloses(pool: string, since: number): Map<number, number> {
-  const rows = db.prepare(`SELECT minute_ts, close FROM candles WHERE pool = ? AND minute_ts >= ? AND close > 0 ORDER BY minute_ts ASC`).all(pool, since) as { minute_ts: number; close: number }[]
-  const out = new Map<number, number>()
-  for (const r of rows) out.set(Math.floor(r.minute_ts / 3600) * 3600, r.close)
-  return out
+  // Roll up to hours in SQL: a month of minute candles for one pool is ~43k rows
+  // and this runs for every holding in the basket.
+  const rows = db
+    .prepare(
+      `SELECT (minute_ts / 3600) * 3600 AS h, close, MAX(minute_ts) AS last
+       FROM candles WHERE pool = ? AND minute_ts >= ? AND close > 0
+       GROUP BY h ORDER BY h ASC`,
+    )
+    .all(pool, since) as { h: number; close: number }[]
+  return new Map(rows.map((r) => [r.h, r.close]))
 }
 
 /**
@@ -233,10 +247,16 @@ export function closeBacking(userId: string, id: number): Backing {
   const value = valueHoldings(holdings)
   const outWei = BigInt(Math.round(value * WEI))
   const now = Math.floor(Date.now() / 1000)
+  // The close is the guard: only a row that is still open can be closed, and
+  // the bankroll is credited only if that UPDATE actually claimed it. Two
+  // concurrent unwinds therefore pay out once, not twice.
   db.transaction(() => {
+    const claimed = db
+      .prepare(`UPDATE basket_positions SET closed_ts = ?, eth_out = ? WHERE id = ? AND user_id = ? AND closed_ts IS NULL`)
+      .run(now, outWei.toString(), id, userId)
+    if (claimed.changes !== 1) throw new Error('Already unwound.')
     const u = db.prepare(`SELECT balance_quote FROM users WHERE id = ?`).get(userId) as { balance_quote: string }
     db.prepare(`UPDATE users SET balance_quote = ? WHERE id = ?`).run((BigInt(u.balance_quote) + outWei).toString(), userId)
-    db.prepare(`UPDATE basket_positions SET closed_ts = ?, eth_out = ? WHERE id = ?`).run(now, outWei.toString(), id)
   })()
   const ethIn = Number(BigInt(row.eth_in)) / WEI
   return { id, wallet: row.wallet, ethIn: row.eth_in, openedTs: row.opened_ts, closedTs: now, ethOut: outWei.toString(), holdings, markEth: value, pnlEth: value - ethIn }

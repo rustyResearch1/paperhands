@@ -39,6 +39,8 @@ export interface WalletSummary {
   tokens: TokenPnl[]
 }
 
+// Bounded: one full summary per wallet anyone ever opens would grow without limit.
+const CACHE_MAX = 200
 const cache = new Map<string, { at: number; v: WalletSummary }>()
 
 export function walletSummary(address: string): WalletSummary {
@@ -84,6 +86,10 @@ export function walletSummary(address: string): WalletSummary {
     rank,
     tokens,
   }
+  if (cache.size >= CACHE_MAX) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
   cache.set(key, { at: Date.now(), v })
   return v
 }
@@ -113,7 +119,15 @@ interface SwapRow {
 
 export function walletSwapLines(address: string, page = 1, size = 60): { lines: SwapLine[]; total: number } {
   const key = address.toLowerCase()
-  const total = (db.prepare(`SELECT COUNT(*) AS n FROM swaps WHERE trader = ?`).get(key) as { n: number }).n
+  // Count exactly what the page lists, or the last pages come back empty.
+  const total = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM swaps s JOIN pools p ON p.address = s.pool
+         WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')`,
+      )
+      .get(key) as { n: number }
+  ).n
   const rows = db
     .prepare(
       `SELECT s.pool, s.ts, s.tx_hash, s.amount0, s.amount1, p.base_is_token0, tb.symbol AS symbol, tb.decimals AS decimals

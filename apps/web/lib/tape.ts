@@ -95,7 +95,11 @@ export function latestFills(opts: { sinceBlock?: number; limit?: number; tracked
   const rate = ethUsdRate()
   const ranked = rankedWallets()
   // Without a since-block, look back an hour; the block index keeps it cheap.
-  const since = opts.sinceBlock ?? blocksAgo(3600)
+  let since = opts.sinceBlock ?? blocksAgo(3600)
+  // Attribution lands minutes after a swap is stored, so a tracked stream that
+  // only looks past the tip would never see those fills at all. Always re-scan
+  // the attribution window; the (trader, block) index makes it cheap.
+  if (opts.tracked) since = Math.min(since, Math.max(0, tipBlock() - 12_000))
   // Side and size are filtered in SQL so LIMIT applies after them — a "sells ≥ $10k" stream
   // must walk back to the last few, not just the newest N rows. The quote leg is amount1 when
   // the base is token0, else amount0; positive = the pool received quote = a buy.
@@ -140,7 +144,9 @@ export function latestFills(opts: { sinceBlock?: number; limit?: number; tracked
     const quote = Math.abs(quoteRaw) / 10 ** r.qd
     const isEth = r.q === 'WETH' || r.q === 'ETH'
     const usd = isEth ? (rate ? quote * rate : null) : quote
-    if (opts.minUsd && (usd ?? 0) < opts.minUsd) continue
+    // Only filter on a number we actually have: with no rate, ETH-quoted fills
+    // pass through and the UI shows them in ETH rather than hiding them.
+    if (opts.minUsd && usd !== null && usd < opts.minUsd) continue
     const qty = Math.abs(baseRaw) / 10 ** r.decimals
     out.push({
       block: r.block,
@@ -252,7 +258,6 @@ export function tapeStats(): TapeStats {
   const now = Math.floor(Date.now() / 1000)
   const count = (sinceBlock: number) => (db.prepare(`SELECT COUNT(*) AS n FROM swaps WHERE block > ?`).get(sinceBlock) as { n: number }).n
   const c5 = count(blocksAgo(300))
-  const c24 = count(blocksAgo(86_400))
   // Buys vs sells over the last five minutes — sign of the quote leg, token pools only.
   // (An hour is ~600k rows here; five minutes keeps this under 150ms cold.)
   const window = db
@@ -264,9 +269,11 @@ export function tapeStats(): TapeStats {
     )
     .get(blocksAgo(300)) as { buys: number | null; n: number }
   const usd = ethUsdRate()
-  // 24h volume from the watcher's snapshot at any age — never the live screener query, which
-  // would block this process's event loop for seconds.
-  const volEth = (storedSnapshot(86_400) ?? []).reduce((a, r) => a + (r.quote_symbol === 'USDG' ? (usd ? r.vol24 / usd : 0) : r.vol24), 0)
+  // 24h volume AND trade count from the watcher's snapshot at any age — never a live
+  // aggregate. Counting a day of swaps here is ~6.4M rows, seconds of blocked event loop.
+  const snapshot = storedSnapshot(86_400) ?? []
+  const volEth = snapshot.reduce((a, r) => a + (r.quote_symbol === 'USDG' ? (usd ? r.vol24 / usd : 0) : r.vol24), 0)
+  const c24 = snapshot.reduce((a, r) => a + r.trades24, 0)
   // Biggest fills over the last hour.
   const recent = latestFills({ sinceBlock: blocksAgo(3600), limit: 300 })
   const biggest = (side: 'buy' | 'sell') => recent.filter((f) => f.side === side && f.usd !== null).sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0))[0] ?? null

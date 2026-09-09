@@ -81,6 +81,13 @@ export async function xPaperTrade(userId: string, chain: XPaperChain, side: 'buy
   const now = Math.floor(Date.now() / 1000)
 
   db.transaction(() => {
+    // Re-read and re-check inside the transaction: the quote above was awaited,
+    // and another order from the same session may have settled meanwhile.
+    const fresh = xPaperState(userId, chain)
+    const balance = BigInt(fresh.native)
+    const pos = fresh.positions.find((p) => p.token.toLowerCase() === token.toLowerCase())
+    if (side === 'buy' && spent > balance) throw new Error(`not enough paper ${NATIVE[chain].symbol}`)
+    if (side === 'sell' && (!pos || BigInt(pos.qty) < spent)) throw new Error('not enough of that token in the paper ledger')
     if (side === 'buy') {
       db.prepare(`INSERT INTO x_balances (user_id, chain, native_raw) VALUES (?, ?, ?) ON CONFLICT(user_id, chain) DO UPDATE SET native_raw = excluded.native_raw`).run(
         userId,

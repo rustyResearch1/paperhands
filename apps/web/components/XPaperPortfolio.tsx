@@ -39,7 +39,10 @@ export default function XPaperPortfolio() {
 function PaperChain({ chain, nativeUsd }: { chain: 'sol' | 'bsc'; nativeUsd: number | null }) {
   const native = NATIVE[chain]
   const q = useQuery({ queryKey: ['xpaper', chain], queryFn: async () => (await fetch(`/api/xpaper?chain=${chain}`)).json() as Promise<State>, refetchInterval: 30_000 })
-  const s = q.data
+  // /api/xpaper answers 401 with {error} for an ephemeral session (cookie-less
+  // client, or the ledger-busy fallback): treat the error body as a state, not data.
+  const s = q.data && !q.data.error && Array.isArray(q.data.valued) ? q.data : null
+  const problem = q.data?.error ?? (q.isError ? 'Could not reach the paper ledger.' : null)
   const usd = (raw: bigint) => (nativeUsd ? formatUsd((Number(raw) / 10 ** native.decimals) * nativeUsd) : null)
   const open = s?.valued.filter((p) => BigInt(p.qty) > 0n) ?? []
   const closed = s?.positions.filter((p) => BigInt(p.qty) === 0n && p.realizedNative !== '0') ?? []
@@ -47,6 +50,7 @@ function PaperChain({ chain, nativeUsd }: { chain: 'sol' | 'bsc'; nativeUsd: num
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
         <span className="label">{CHAIN_LABEL[chain]} · paper</span>
+        {problem && <span className="text-[12.5px] text-muted">{problem}</span>}
         {s && !s.error && (
           <span className="num text-[13px]">
             equity{' '}

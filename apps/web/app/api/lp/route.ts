@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMeta, lpBacktest } from '@paperhands/indexer'
-import { bump } from '@/lib/counters'
 import { db } from '@/lib/db'
 import { chainClient } from '@/lib/quote'
+import { limitHeaders, rateLimit } from '@/lib/ratelimit'
 
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
+  // Reconstructs liquidity at every block in the window: expensive, so six a minute per IP.
+  const rl = rateLimit(req, 6)
+  if (!rl.ok) return NextResponse.json({ error: 'rate limited — backtests are expensive' }, { status: 429, headers: limitHeaders(rl) })
   const q = req.nextUrl.searchParams
   const pool = q.get('pool')?.toLowerCase()
   const rangePct = Number(q.get('range') ?? 30)
@@ -37,7 +40,6 @@ export async function GET(req: NextRequest) {
       fromBlock,
       toBlock: cursor,
     })
-    bump('lab.lp')
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 })

@@ -100,11 +100,18 @@ export function replayTrader(db: Database.Database, trader: string): { tokens: T
         untracked = true
         p.untracked = true
       } else {
+        // Decide "sold more than the ledger saw bought" BEFORE mutating qty —
+        // after the clamp the comparison is always false. 1 unit of slack
+        // absorbs float error on raw token amounts.
+        const over = base > p.qty + 1
         const portion = Math.min(1, base / p.qty)
         costOut = p.openCost * portion
         p.openCost -= costOut
         p.qty = Math.max(0, p.qty - base)
-        if (base > p.qty + base + 1) untracked = true
+        if (over) {
+          untracked = true
+          p.untracked = true
+        }
       }
       p.realized += out - costOut
       closes.push({ ts: r.ts, trader: t, token: r.baseAddr, pool: r.pool, symbol: r.symbol, decimals: r.decimals, tx: r.tx_hash, qtyRaw: BigInt(Math.floor(base)).toString(), ethOut: out, costOut, realized: out - costOut, heldSec: Math.max(0, r.ts - p.openedTs), untracked })

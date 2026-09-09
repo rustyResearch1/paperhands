@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMeta, walletReplay } from '@paperhands/indexer'
-import { bump } from '@/lib/counters'
 import { db } from '@/lib/db'
 import { chainClient } from '@/lib/quote'
+import { limitHeaders, rateLimit } from '@/lib/ratelimit'
 
 export const maxDuration = 90
 
 export async function GET(req: NextRequest) {
+  // The heaviest endpoint on the site: a replay reads pinned pool state for up
+  // to eight pools over the RPC. Six a minute per IP.
+  const rl = rateLimit(req, 6)
+  if (!rl.ok) return NextResponse.json({ error: 'rate limited — replays are expensive' }, { status: 429, headers: limitHeaders(rl) })
   const q = req.nextUrl.searchParams
   const wallet = q.get('wallet')?.toLowerCase()
   const eth = Number(q.get('eth') ?? 0.25)
@@ -35,7 +39,6 @@ export async function GET(req: NextRequest) {
       Math.max(first.b - 1, liqFrom),
       cursor,
     )
-    bump('lab.replay')
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 })

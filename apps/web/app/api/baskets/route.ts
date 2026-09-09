@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { backersLeaderboard, basketSeries, closeBacking, openBacking, userBackings, walletBasket } from '@/lib/baskets'
+import { backersLeaderboard, basketView, closeBacking, openBacking, userBackings } from '@/lib/baskets'
 import { limitHeaders, rateLimit } from '@/lib/ratelimit'
 import { getOrCreateUser } from '@/lib/session'
 
@@ -22,8 +22,7 @@ export async function GET(req: NextRequest) {
     if (q.get('mine')) return NextResponse.json({ backings: user.id === '__ephemeral' ? [] : userBackings(user.id), balance: user.balance_quote }, { headers })
     const wallet = (q.get('wallet') ?? '').toLowerCase()
     if (!/^0x[0-9a-f]{40}$/.test(wallet)) return NextResponse.json({ error: 'wallet required' }, { status: 400, headers })
-    const basket = walletBasket(wallet)
-    const series = basketSeries(basket, Math.min(30, Math.max(1, Number(q.get('days') ?? 7))))
+    const { basket, series } = await basketView(wallet, Math.min(30, Math.max(1, Number(q.get('days') ?? 7))))
     const mine = user.id === '__ephemeral' ? [] : userBackings(user.id).filter((b) => b.wallet === wallet)
     return NextResponse.json({ basket, series, mine, balance: user.balance_quote }, { headers })
   } catch (err) {

@@ -15,6 +15,10 @@ export function openDb(path = process.env.PAPERHANDS_DB ?? defaultDbPath()): Dat
   const db = new Database(path)
   db.pragma('journal_mode = WAL')
   db.pragma('synchronous = NORMAL')
+  // Cap the write-ahead log at 256 MB on restart. Without this it only ever
+  // grows: the web polls constantly, so the passive auto-checkpoint rarely
+  // finds a moment with no reader (observed: a 1.5 GB WAL).
+  db.pragma('journal_size_limit = 268435456')
   migrate(db)
   ensureLateIndexes(db)
   return db

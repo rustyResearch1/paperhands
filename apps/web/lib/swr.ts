@@ -24,7 +24,11 @@ export function swr<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promis
   }
   const entry = e
   if (!entry.inflight) {
-    entry.inflight = fn()
+    // Start the refresh on a later tick: `fn` may open with a heavy synchronous
+    // query, and a stale-while-revalidate cache that blocks the caller it is
+    // meant to protect is worse than no cache.
+    const start = entry.at > 0 ? Promise.resolve().then(() => fn()) : fn()
+    entry.inflight = start
       .then((v) => {
         entry.value = v
         entry.at = Date.now()
