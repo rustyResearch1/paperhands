@@ -16,7 +16,16 @@ export async function GET() {
     const pools = (db.prepare(`SELECT COUNT(*) AS n FROM pools`).get() as { n: number }).n
     const now = Math.floor(Date.now() / 1000)
     return NextResponse.json(
-      { ok: cursor > 0, cursor, pools, wireRankAgeSec: wireTs ? now - wireTs : null, screenerAgeSec: screenerTs ? now - screenerTs : null, at: now },
+      {
+        ok: cursor > 0,
+        cursor,
+        pools,
+        wireRankAgeSec: wireTs ? now - wireTs : null,
+        screenerAgeSec: screenerTs ? now - screenerTs : null,
+        dedicatedRpc: Boolean(process.env.PAPERHANDS_RPC && process.env.PAPERHANDS_RPC !== 'https://rpc.mainnet.chain.robinhood.com'),
+        deployment: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
+        at: now,
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (err) {

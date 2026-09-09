@@ -183,16 +183,30 @@ export class Ingestor {
    * error must never permanently poison attribution).
    */
   async enrichTraders(limit = 120): Promise<number> {
+    // Biggest fills first: on a capped RPC the lookup budget names the trades a trencher
+    // cares about and lets the sub-dollar bot churn go unnamed. Size = the quote leg in
+    // human units, ETH weighted ×3000 so ETH- and USDG-quoted pools rank together (a
+    // priority, not a displayed number). Only the last ~30 minutes of blocks compete.
     const rows = this.db
       .prepare(
-        `SELECT DISTINCT tx_hash FROM swaps WHERE trader IS NULL ORDER BY block DESC LIMIT ?`,
+        `SELECT tx_hash FROM (
+           SELECT s.tx_hash,
+                  MAX(ABS(CASE WHEN p.base_is_token0 = 1 THEN CAST(s.amount1 AS REAL) ELSE CAST(s.amount0 AS REAL) END)
+                      / (CASE WHEN COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH') THEN 1e15 ELSE 1e6 END)) AS sz
+           FROM swaps s INDEXED BY swaps_block
+           JOIN pools p ON p.address = s.pool
+           WHERE s.trader IS NULL AND s.block > (SELECT MAX(block) FROM swaps) - 20000
+           GROUP BY s.tx_hash
+           ORDER BY sz DESC LIMIT ?
+         )`,
       )
       .all(limit) as { tx_hash: string }[]
     if (rows.length === 0) return 0
     const update = this.db.prepare('UPDATE swaps SET trader = ? WHERE tx_hash = ?')
     const queue = rows.map((r) => r.tx_hash)
     let n = 0
-    const workers = Array.from({ length: Math.min(hasDedicatedRpc() ? 32 : 8, queue.length) }, async () => {
+    // 100 in flight on a dedicated key fills viem's 100-call JSON-RPC batches (one HTTP request each).
+    const workers = Array.from({ length: Math.min(hasDedicatedRpc() ? 100 : 8, queue.length) }, async () => {
       for (let tx_hash = queue.pop(); tx_hash; tx_hash = queue.pop()) {
         try {
           const tx = await this.client.getTransaction({ hash: tx_hash as `0x${string}` })

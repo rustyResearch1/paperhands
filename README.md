@@ -178,7 +178,7 @@ pnpm --filter @paperhands/web sim [pool] [buy|sell] [amountRaw]   # real calldat
 
 Env: `PAPERHANDS_DB` (SQLite path), `PAPERHANDS_RPC` (a dedicated Robinhood Chain endpoint —
 OrbitFlare, dRPC, QuickNode, Alchemy; the public RPC rate-limits and serves only ~3k blocks of
-pinned state), `PAPERHANDS_RPC_WEB` (optional second endpoint just for quotes), `PAPERHANDS_ATTRIB_PER_TICK`
+pinned state), `PAPERHANDS_RPC_WEB` (optional second endpoint just for quotes), `PAPERHANDS_RPC_RPS` (token-bucket cap on HTTP requests to the dedicated endpoint, default 8 — set to your plan's limit; 0 disables), `PAPERHANDS_RPC_BATCH` (JSON-RPC calls per HTTP request on the dedicated endpoint, default 100; set 1 if the provider bills each call), `PAPERHANDS_ATTRIB_PER_TICK`
 (transaction lookups per watch tick; 60 on the public RPC, 3000 with a dedicated one),
 `PAPERHANDS_SECRET` (cookie HMAC), `ETHERSCAN_API_KEY` (BNB Chain wallet explorer), `NEXT_PUBLIC_SITE_URL`.
 With a dedicated endpoint the client batches JSON-RPC calls (the public node can't) and falls back to the
