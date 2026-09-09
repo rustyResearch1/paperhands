@@ -1,5 +1,5 @@
 import { db } from '../db'
-import { swr } from '../swr'
+import { swr, swrOrNull } from '../swr'
 import { ethUsdRate } from '../usd'
 import { simplePriceUsd } from './gecko'
 import { xquote, xtoken } from './index'
@@ -93,6 +93,11 @@ async function tokenPricesUsd(chain: XChain, tokens: string[]): Promise<Record<s
 /** Fresh for a minute; a stale table is served instantly while one refresh runs behind it. */
 export function compareAcrossChains(usd: number): Promise<{ rows: CompareRow[]; nativeUsd: Record<XChain, number | null> }> {
   return swr(`compare:${usd}`, 60_000, () => computeCompare(usd))
+}
+
+/** Cached table, or null while the first quote sweep is still running. */
+export function compareOrNull(usd: number): { rows: CompareRow[]; nativeUsd: Record<XChain, number | null> } | null {
+  return swrOrNull(`compare:${usd}`, 60_000, () => computeCompare(usd))
 }
 
 async function computeCompare(usd: number): Promise<{ rows: CompareRow[]; nativeUsd: Record<XChain, number | null> }> {

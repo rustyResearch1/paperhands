@@ -1,6 +1,7 @@
 import Link from 'next/link'
+import Warming from '@/components/Warming'
 import { formatUsd } from '@/lib/format'
-import { compareAcrossChains } from '@/lib/x/compare'
+import { compareOrNull } from '@/lib/x/compare'
 import { CHAIN_LABEL, NATIVE, type XChain } from '@/lib/x/types'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,9 @@ const CHAINS: XChain[] = ['rh', 'sol', 'bsc']
 export default async function BestExecution({ searchParams }: { searchParams: Promise<{ usd?: string }> }) {
   const { usd: usdRaw } = await searchParams
   const usd = SIZES.includes(Number(usdRaw)) ? Number(usdRaw) : 500
-  const { rows, nativeUsd } = await compareAcrossChains(usd)
+  const compare = compareOrNull(usd)
+  const rows = compare?.rows ?? []
+  const nativeUsd = compare?.nativeUsd ?? { rh: null, sol: null, bsc: null }
 
   return (
     <div className="space-y-5">
@@ -35,6 +38,8 @@ export default async function BestExecution({ searchParams }: { searchParams: Pr
         </span>
       </div>
 
+      {compare === null && <Warming what="The cross-chain quote table" seconds={40} />}
+      {compare !== null && (
       <div className="card rise rise-2 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="tbl">
@@ -82,6 +87,7 @@ export default async function BestExecution({ searchParams }: { searchParams: Pr
           </table>
         </div>
       </div>
+      )}
       <p className="text-[12px] text-faint">
         Cost = 1 − (USD value received ÷ USD spent) at current prices (Jupiter / GeckoTerminal / our ledger). Wrapped assets differ per chain (cbBTC vs BTCB, Wormhole ETH vs
         Binance-peg ETH): same exposure, different issuers — not fungible across chains without a bridge. Sizes are sized in each chain&rsquo;s native asset at spot.

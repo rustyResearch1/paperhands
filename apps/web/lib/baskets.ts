@@ -1,5 +1,5 @@
 import { db } from './db'
-import { swr } from './swr'
+import { swr, swrOrNull } from './swr'
 import { walletSummary } from './walletx'
 
 /**
@@ -108,6 +108,22 @@ export function walletBasket(address: string): Basket {
     }
   })
   return { address: w.address, rank: w.rank, markEth: keptTotal, holdings, excluded: w.tokens.filter((t) => t.openQty > 0).length - holdings.length, asOf: now }
+}
+
+/**
+ * A fixed basket's return over the window, straight from the holdings: with
+ * quantities held constant, value_then / value_now = Σ wᵢ / (1 + rᵢ), so the
+ * return needs no price series at all — only the per-holding change the basket
+ * already carries.
+ */
+export function basketReturnPct(basket: Basket): number | null {
+  const priced = basket.holdings.filter((h) => h.change7dPct !== null && h.change7dPct > -100)
+  if (priced.length === 0) return null
+  const weight = priced.reduce((a, h) => a + h.weight, 0)
+  if (weight <= 0) return null
+  const ratio = priced.reduce((a, h) => a + (h.weight / weight) / (1 + h.change7dPct! / 100), 0)
+  if (!(ratio > 0) || !Number.isFinite(ratio)) return null
+  return (1 / ratio - 1) * 100
 }
 
 /** Hourly closes for a pool since `since`, last candle of each hour, oldest first. */
@@ -278,8 +294,17 @@ export interface LeaderRow {
   backedEth: number
 }
 
+/** Cached rows, or null while the first build is still running. */
+export function backersLeaderboardOrNull(limit = 30): LeaderRow[] | null {
+  return swrOrNull(`baskets:leaderboard:${limit}`, 120_000, () => buildLeaderboard(limit))
+}
+
 export function backersLeaderboard(limit = 30): Promise<LeaderRow[]> {
-  return swr(`baskets:leaderboard:${limit}`, 120_000, async () => {
+  return swr(`baskets:leaderboard:${limit}`, 120_000, () => buildLeaderboard(limit))
+}
+
+function buildLeaderboard(limit: number): Promise<LeaderRow[]> {
+  return (async () => {
     const ranked = db.prepare(`SELECT trader, rank, realized_eth, win_rate FROM wire_rank ORDER BY rank ASC LIMIT ?`).all(limit) as { trader: string; rank: number; realized_eth: number; win_rate: number | null }[]
     const backing = new Map<string, { n: number; eth: number }>()
     for (const b of db.prepare(`SELECT wallet, COUNT(*) AS n, SUM(CAST(eth_in AS REAL)) AS eth FROM basket_positions WHERE closed_ts IS NULL GROUP BY wallet`).all() as { wallet: string; n: number; eth: number }[]) {
@@ -287,8 +312,10 @@ export function backersLeaderboard(limit = 30): Promise<LeaderRow[]> {
     }
     const rows: LeaderRow[] = []
     for (const r of ranked) {
+      // Yield between wallets: each replay is synchronous SQLite, and thirty of
+      // them back to back would hold the event loop for the whole build.
+      await new Promise((resolve) => setImmediate(resolve))
       const basket = walletBasket(r.trader)
-      const series = basket.holdings.length ? basketSeries(basket, 7) : null
       const b = backing.get(r.trader)
       rows.push({
         address: r.trader,
@@ -298,11 +325,11 @@ export function backersLeaderboard(limit = 30): Promise<LeaderRow[]> {
         holdings: basket.holdings.length,
         top: basket.holdings.slice(0, 3).map((h) => h.symbol),
         markEth: basket.markEth,
-        return7dPct: series?.returnPct ?? null,
+        return7dPct: basketReturnPct(basket),
         backers: b?.n ?? 0,
         backedEth: b?.eth ?? 0,
       })
     }
     return rows
-  })
+  })()
 }

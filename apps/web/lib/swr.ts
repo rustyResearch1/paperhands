@@ -51,3 +51,19 @@ export function swrAge(key: string): number | null {
   const e = entries.get(key)
   return e && e.at > 0 ? Date.now() - e.at : null
 }
+
+/**
+ * Like `swr`, but a cold key never makes the caller wait: the refresh starts in
+ * the background and the call returns null. Pages that would otherwise block for
+ * tens of seconds after a deploy (the LP screener, best execution, the baskets
+ * leaderboard) render a "still building" state instead of hanging — and because
+ * the process is single-threaded, one such wait used to stall every other
+ * request too.
+ */
+export function swrOrNull<T>(key: string, ttlMs: number, fn: () => Promise<T>): T | null {
+  const entry = entries.get(key)
+  if (entry && entry.at > 0 && Date.now() - entry.at < ttlMs) return entry.value as T
+  // Kick off (or join) a refresh, then answer with whatever we already have.
+  void swr(key, ttlMs, fn).catch(() => {})
+  return entry && entry.at > 0 ? (entry.value as T) : null
+}

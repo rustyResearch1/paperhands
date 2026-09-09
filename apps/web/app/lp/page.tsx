@@ -1,7 +1,8 @@
 import Link from 'next/link'
+import Warming from '@/components/Warming'
 import { formatUsd } from '@/lib/format'
 import { isXChain } from '@/lib/x'
-import { lpScreen } from '@/lib/x/lp'
+import { lpScreenOrNull } from '@/lib/x/lp'
 import { CHAIN_LABEL, type XChain } from '@/lib/x/types'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ const pct = (v: number, d = 2) => `${v.toFixed(d)}%`
 export default async function LpScreener({ searchParams }: { searchParams: Promise<{ chain?: string }> }) {
   const { chain } = await searchParams
   const chains: XChain[] = isXChain(chain) ? [chain] : ['rh', 'sol', 'bsc']
-  const screen = await lpScreen(chains)
+  const screen = lpScreenOrNull(chains)
   const filters: { id: string; label: string }[] = [
     { id: '', label: 'All chains' },
     { id: 'rh', label: 'Robinhood Chain' },
@@ -39,6 +40,8 @@ export default async function LpScreener({ searchParams }: { searchParams: Promi
         ))}
       </div>
 
+      {screen === null && <Warming what="The LP screener" seconds={40} />}
+      {screen !== null && (
       <div className="card rise rise-2 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="tbl">
@@ -94,10 +97,11 @@ export default async function LpScreener({ searchParams }: { searchParams: Promi
           </table>
         </div>
       </div>
+      )}
       <p className="text-[12px] text-faint">
         Fee yield = 24h fees ÷ TVL. σ = realized 24h volatility from minute candles (Robinhood Chain: our ledger; others: GeckoTerminal); shown for the top rows only.
         Ranges follow the LP Lab: tight 1σ, balanced 2σ, wide 4σ. Robinhood Chain v3 ETH pools open straight from the token page; Solana and BNB Chain LP positions are next.
-        {screen.errors.length ? ` Sources down right now: ${screen.errors.join('; ')}.` : ''}
+        {screen && screen.errors.length ? ` Sources down right now: ${screen.errors.join('; ')}.` : ''}
       </p>
     </div>
   )

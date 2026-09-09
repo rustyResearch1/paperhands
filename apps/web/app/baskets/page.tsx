@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import PageHeader from '@/components/PageHeader'
-import { backersLeaderboard } from '@/lib/baskets'
+import Warming from '@/components/Warming'
+import { backersLeaderboardOrNull } from '@/lib/baskets'
 import { formatUsd } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
 import Delta from '@/components/Delta'
@@ -12,7 +13,7 @@ export const metadata = { title: 'Baskets' }
 const pct = (n: number | null) => (n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`)
 
 export default async function BasketsPage() {
-  const rows = await backersLeaderboard(30)
+  const rows = backersLeaderboardOrNull(30)
   const rate = ethUsdRate()
   return (
     <div className="space-y-5">
@@ -42,6 +43,8 @@ export default async function BasketsPage() {
         ))}
       </div>
 
+      {rows === null && <Warming what="The backers leaderboard" />}
+      {rows !== null && (
       <div className="card rise rise-2 overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-3">
           <span className="label">Backers leaderboard</span>
@@ -109,6 +112,7 @@ export default async function BasketsPage() {
           </table>
         </div>
       </div>
+      )}
       <p className="text-[12px] text-faint">
         &ldquo;7d as basket&rdquo; is today&rsquo;s basket priced back a week, not the trader&rsquo;s own P&amp;L. Marks are last-trade prices from our ledger; the exact
         pool-would-pay valuation lives on each wallet page. Practice balances are not money.
