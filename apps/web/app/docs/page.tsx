@@ -42,12 +42,14 @@ const ENDPOINTS = [
   },
   {
     path: '/api/v1/xtx',
+    method: 'POST' as const,
     params: 'POST { quote, user, slippageBps } — the quote from xquote (≤60s old), the signer address or pubkey',
     what: 'The transaction that wallet signs: a base64 VersionedTransaction on Solana (Jupiter), {to, data, value} on BNB Chain (PancakeSwap SmartRouter calldata from our route, or KyberSwap’s). Never signed or sent here.',
     example: '/docs',
   },
   {
     path: '/api/v1/xvalue',
+    method: 'POST' as const,
     params: 'POST { chain, holdings: [{ token, amount }] } — up to 15 bags',
     what: 'What the venue would pay for each bag right now: a full-size sell quote per token (engine on Robinhood Chain / PancakeSwap, Jupiter on Solana, KyberSwap when better). The number a portfolio should show instead of the chart price.',
     example: '/docs',
@@ -126,16 +128,22 @@ export default function Docs() {
       {ENDPOINTS.map((e) => (
         <div key={e.path} className="card rise rise-2 p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="pill pill-up">GET</span>
+            <span className={`pill ${'method' in e && e.method === 'POST' ? 'pill-pen' : 'pill-up'}`}>{'method' in e ? e.method : 'GET'}</span>
             <code className="num text-[15px] font-semibold">{e.path}</code>
           </div>
           <p className="mt-2 text-[14px]">{e.what}</p>
           <p className="mt-2 text-[13px] text-muted">
             <span className="label">params</span> {e.params}
           </p>
-          <a className="num mt-3 block overflow-x-auto rounded-lg bg-bg-3 px-3 py-2 text-[12.5px] text-pen" href={e.example} target="_blank" rel="noreferrer">
-            {e.example}
-          </a>
+          {'method' in e && e.method === 'POST' ? (
+            <pre className="num mt-3 overflow-x-auto rounded-lg bg-bg-3 px-3 py-2 text-[12.5px] text-muted">
+              curl -X POST {e.path} -H &apos;content-type: application/json&apos; -d &apos;{'{'}…{'}'}&apos;
+            </pre>
+          ) : (
+            <a className="num mt-3 block overflow-x-auto rounded-lg bg-bg-3 px-3 py-2 text-[12.5px] text-pen" href={e.example} target="_blank" rel="noreferrer">
+              {e.example}
+            </a>
+          )}
         </div>
       ))}
       <p className="text-[12px] text-faint">

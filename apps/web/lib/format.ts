@@ -67,3 +67,46 @@ export function timeAgo(ts: number): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h`
   return `${Math.floor(s / 86400)}d`
 }
+
+// ---------------------------------------------------------------------------
+// The helpers below were re-implemented locally on a dozen pages, each with its
+// own decimal count and sign rule, which is why the same wallet's numbers read
+// differently on the Wire, the Tape and its own page.
+
+/** A plain number in ETH units (not wei), e.g. 1.234. */
+export function formatEthNum(n: number, digits = 3): string {
+  if (!Number.isFinite(n)) return '—'
+  if (Math.abs(n) >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 1 })
+  return n.toLocaleString('en-US', { maximumFractionDigits: digits })
+}
+
+/** Always carries its sign — for P&L, flows and deltas. */
+export function signed(n: number, digits = 3): string {
+  if (!Number.isFinite(n)) return '—'
+  return `${n >= 0 ? '+' : ''}${formatEthNum(n, digits)}`
+}
+
+/** Token quantities in human units: 3.31M, 10.6K, 536. */
+export function formatQtyNum(n: number): string {
+  if (!Number.isFinite(n)) return '—'
+  const a = Math.abs(n)
+  if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
+  if (a >= 1000) return `${(n / 1000).toFixed(1)}K`
+  return n.toLocaleString('en-US', { maximumFractionDigits: a < 10 ? 2 : 0 })
+}
+
+/** 0x4337…b6c2 — one address shortening for the whole app. */
+export function shortAddr(address: string, lead = 6, tail = 4): string {
+  if (!address) return ''
+  if (address.length <= lead + tail + 1) return address
+  return `${address.slice(0, lead)}…${address.slice(-tail)}`
+}
+
+/** A duration in seconds: 45s, 12m, 3.4h, 2.1d. */
+export function formatDuration(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return '—'
+  if (sec < 60) return `${Math.round(sec)}s`
+  if (sec < 3600) return `${Math.round(sec / 60)}m`
+  if (sec < 86_400) return `${(sec / 3600).toFixed(1)}h`
+  return `${(sec / 86_400).toFixed(1)}d`
+}

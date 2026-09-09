@@ -5,6 +5,7 @@ import './globals.css'
 import Ambient from '@/components/Ambient'
 import ChainSwitch from '@/components/ChainSwitch'
 import ModeSwitch from '@/components/ModeSwitch'
+import NavLinks from '@/components/NavLinks'
 import Providers from '@/components/Providers'
 import WalletButton from '@/components/WalletButton'
 import { formatEth } from '@/lib/format'
@@ -29,14 +30,22 @@ export const metadata: Metadata = {
 }
 export const viewport: Viewport = { themeColor: '#eeebe5', width: 'device-width', initialScale: 1 }
 
+/**
+ * `primary` rides the mobile bar — five is what fits at a legible size. The rest
+ * live in the header and the footer; /x and /docs previously had no link at all.
+ */
 const NAV = [
-  { href: '/', label: 'Markets' },
-  { href: '/tape', label: 'Tape' },
-  { href: '/baskets', label: 'Baskets' },
-  { href: '/lp', label: 'LP' },
-  { href: '/wire', label: 'Wire' },
-  { href: '/portfolio', label: 'Portfolio' },
+  { href: '/', label: 'Markets', primary: true },
+  { href: '/tape', label: 'Tape', primary: true },
+  { href: '/baskets', label: 'Baskets', primary: true },
+  { href: '/lp', label: 'LP', primary: false },
+  { href: '/x', label: 'Best execution', primary: false },
+  { href: '/wire', label: 'Wire', primary: true },
+  { href: '/portfolio', label: 'Portfolio', primary: true },
+]
+const MORE = [
   { href: '/leaderboard', label: 'Leaderboard' },
+  { href: '/docs', label: 'API docs' },
 ]
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -52,12 +61,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <span className="inline-block h-5 w-5 rounded-[5px] bg-ink" aria-hidden="true" />
                 PaperHands
               </Link>
-              <nav className="hidden items-center gap-1 text-[14px] md:flex">
-                {NAV.map((n) => (
-                  <Link key={n.href} href={n.href} className="rounded-lg px-3 py-1.5 text-muted hover:bg-bg-2 hover:text-ink">
-                    {n.label}
-                  </Link>
-                ))}
+              <nav className="hidden items-center gap-1 text-[14px] lg:flex" aria-label="Main">
+                <NavLinks items={NAV} variant="header" />
               </nav>
               <div className="ml-auto flex items-center gap-3">
                 <ChainSwitch />
@@ -67,14 +72,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </header>
           <main className="above mx-auto max-w-6xl px-4 py-8">{children}</main>
-          <nav className="above fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-bg/90 backdrop-blur-md md:hidden">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="flex-1 py-3 text-center text-[12px] font-semibold text-muted">
-                {n.label}
-              </Link>
-            ))}
+          <nav className="above fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-bg/90 backdrop-blur-md lg:hidden" aria-label="Main">
+            <NavLinks items={NAV.filter((n) => n.primary)} variant="mobile" />
           </nav>
-          <footer className="above mx-auto max-w-6xl px-4 pb-24 pt-8 text-[12px] text-faint md:pb-10">
+          <footer className="above mx-auto max-w-6xl px-4 pb-24 pt-8 text-[12px] text-faint lg:pb-10">
+            <nav className="mb-3 flex flex-wrap gap-x-4 gap-y-1" aria-label="More">
+              {[...NAV.filter((n) => !n.primary), ...MORE].map((n) => (
+                <Link key={n.href} href={n.href} className="hover:text-ink">
+                  {n.label}
+                </Link>
+              ))}
+            </nav>
             Fills simulated against live Robinhood Chain liquidity · engine cross-checked wei-for-wei against the on-chain
             quoters · practice balances are not money · nothing here is financial advice.
           </footer>

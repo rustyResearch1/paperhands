@@ -3,6 +3,7 @@
 import { useQueries } from '@tanstack/react-query'
 import Link from 'next/link'
 import { formatQty, formatUsd } from '@/lib/format'
+import Kpi from '@/components/Kpi'
 
 export interface OpenBag {
   token: string
@@ -131,12 +132,3 @@ export function OpenBagsTable({ bags, ethUsd }: { bags: OpenBag[]; ethUsd: numbe
   )
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'up' | 'down' }) {
-  return (
-    <div className="card-flat p-4">
-      <div className="label">{label}</div>
-      <div className={`num mt-1 text-[18px] font-semibold ${tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : ''}`}>{value}</div>
-      {sub && <div className="text-[11.5px] text-faint">{sub}</div>}
-    </div>
-  )
-}

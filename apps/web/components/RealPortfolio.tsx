@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAccount, useConnect } from 'wagmi'
 import LpActions from '@/components/LpActions'
 import { formatEth, formatQty, formatUsd } from '@/lib/format'
+import Kpi from '@/components/Kpi'
 
 interface Holding {
   token: string
@@ -214,11 +215,3 @@ export default function RealPortfolio({ usdRate }: { usdRate: number | null }) {
   )
 }
 
-function Kpi({ label, value, hero }: { label: string; value: string; hero?: boolean }) {
-  return (
-    <div className="card-flat p-4">
-      <div className="label">{label}</div>
-      <div className="num mt-1 text-[18px] font-semibold">{hero ? <span className="hilite">{value}</span> : value}</div>
-    </div>
-  )
-}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { EXPLORER_URL } from '@paperhands/chain'
 import { formatPrice, formatUsd, timeAgo } from '@/lib/format'
+import Kpi from '@/components/Kpi'
 
 interface Fill {
   block: number
@@ -320,13 +321,3 @@ export default function LiveTape() {
   )
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'up' | 'down' | 'warn' }) {
-  const cls = tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : tone === 'warn' ? 'text-warn' : ''
-  return (
-    <div className="card-flat p-3">
-      <div className="label">{label}</div>
-      <div className={`num mt-1 text-[16px] font-semibold ${cls}`}>{value}</div>
-      {sub && <div className="truncate text-[11.5px] text-faint">{sub}</div>}
-    </div>
-  )
-}

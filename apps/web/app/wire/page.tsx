@@ -6,6 +6,7 @@ import { timeAgo } from '@/lib/format'
 import { topTraders } from '@/lib/wire'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Wire' }
 
 const fmt = (n: number, d = 2) => n.toLocaleString('en-US', { maximumFractionDigits: d })
 

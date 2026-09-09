@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getOrCreateUser } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Leaderboard' }
 
 const fmtEth = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 3 })
 

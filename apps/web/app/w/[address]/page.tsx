@@ -10,6 +10,7 @@ import { getOrCreateUser } from '@/lib/session'
 import { ethUsdRate } from '@/lib/usd'
 import { walletSummary, walletSwapLines } from '@/lib/walletx'
 import { EXPLORER_URL } from '@paperhands/chain'
+import Kpi from '@/components/Kpi'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,8 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
   const rate = ethUsdRate()
   const usd = (eth: number) => (rate ? ` · ${formatUsd(eth * rate)}` : '')
   const pages = Math.max(1, Math.ceil(swaps.total / 60))
+  // Positions whose cost basis is incomplete: their realized number reads high.
+  const partial = w.tokens.filter((t) => t.untracked).length
 
   return (
     <div className="space-y-5">
@@ -65,7 +68,13 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Realized" value={signed(w.realized)} sub={`ETH${usd(w.realized)}`} tone={w.realized >= 0 ? 'up' : 'down'} />
+        <Kpi
+          label="Realized"
+          value={signed(w.realized)}
+          sub={partial > 0 ? `ETH · ${partial} of ${w.tokens.length} partial` : `ETH${usd(w.realized)}`}
+          tone={w.realized >= 0 ? 'up' : 'down'}
+          title={partial > 0 ? 'Some sells are of bags bought before our window began, so their cost is understated and realized P&L reads high' : undefined}
+        />
         <OpenBagsKpi bags={bags} ethUsd={rate} />
         <Kpi label="Net flow" value={signed(w.netFlow)} sub="ETH out − in" tone={w.netFlow >= 0 ? 'up' : 'down'} />
         <Kpi label="Win rate" value={w.winRate === null ? '—' : `${(w.winRate * 100).toFixed(0)}%`} sub={`${w.closedTokens} tokens with sells`} />
@@ -281,12 +290,3 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
   )
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'up' | 'down' }) {
-  return (
-    <div className="card-flat p-4">
-      <div className="label">{label}</div>
-      <div className={`num mt-1 text-[18px] font-semibold ${tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : ''}`}>{value}</div>
-      {sub && <div className="text-[11.5px] text-faint">{sub}</div>}
-    </div>
-  )
-}

@@ -10,8 +10,10 @@ import { formatEth, formatQty, formatUsd } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
 import { ticketQuote } from '@/lib/quote'
 import { getOrCreateUser } from '@/lib/session'
+import Kpi from '@/components/Kpi'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Portfolio' }
 
 interface PosRow {
   pool: string
@@ -194,13 +196,3 @@ export default async function Portfolio() {
   )
 }
 
-function Kpi({ label, value, hero, tone }: { label: string; value: string; hero?: boolean; tone?: 'up' | 'down' }) {
-  return (
-    <div className="card-flat p-4">
-      <div className="label">{label}</div>
-      <div className={`num mt-1 text-[18px] font-semibold ${tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : ''}`}>
-        {hero ? <span className="hilite">{value}</span> : value}
-      </div>
-    </div>
-  )
-}

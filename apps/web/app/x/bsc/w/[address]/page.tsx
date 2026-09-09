@@ -4,6 +4,7 @@ import CopyAddress from '@/components/CopyAddress'
 import { formatUsd, timeAgo } from '@/lib/format'
 import { bscWallet, bscWalletAvailable } from '@/lib/x/bscwallet'
 import { simplePriceUsd } from '@/lib/x/gecko'
+import Kpi from '@/components/Kpi'
 
 export const dynamic = 'force-dynamic'
 const fmt = (n: number, d = 3) => n.toLocaleString('en-US', { maximumFractionDigits: d })
@@ -181,12 +182,3 @@ export default async function BscWalletPage({ params }: { params: Promise<{ addr
   )
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'up' | 'down' }) {
-  return (
-    <div className="card-flat p-4">
-      <div className="label">{label}</div>
-      <div className={`num mt-1 text-[18px] font-semibold ${tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : ''}`}>{value}</div>
-      {sub && <div className="text-[11.5px] text-faint">{sub}</div>}
-    </div>
-  )
-}
