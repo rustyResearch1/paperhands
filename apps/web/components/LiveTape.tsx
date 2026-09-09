@@ -287,8 +287,8 @@ export default function LiveTape() {
               <span className="text-[11px] text-faint">{closed.data?.ts ? `as of ${timeAgo(closed.data.ts)} ago` : ''}</span>
             </div>
             <ul className="divide-y divide-line px-2 pb-2 pt-2 text-[13px]">
-              {(closed.data?.closes ?? []).slice(0, 25).map((c) => (
-                <li key={`${c.tx}:${c.token}`} className="flex items-center justify-between gap-2 px-2 py-1.5">
+              {(closed.data?.closes ?? []).slice(0, 25).map((c, i) => (
+                <li key={`${c.tx}:${c.token}:${c.trader}:${i}`} className="flex items-center justify-between gap-2 px-2 py-1.5">
                   <span className="min-w-0">
                     <Link href={`/w/${c.trader}`} className="num hover:text-pen">
                       {short(c.trader)}
