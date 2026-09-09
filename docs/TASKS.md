@@ -178,3 +178,16 @@ Still open from the audit
 - [ ] v4 liq backfill has no resume marker; unresolvable pools retried every tick without a negative cache
 - [ ] `ticketQuote` records block '0' on paper trades; block timestamps extrapolate from one anchor
 - [ ] four audit dimensions never ran: UX flows, mobile/a11y (partly covered), security, product gaps
+
+## Stage O — /how, the public explainer (2026-09-09)
+- [x] `/how` — what we are and how the engine works, in plain language: exact fills vs chart prices (with an SVG of an order
+      walking the liquidity ladder), the Uniswap-math port checked wei-for-wei against the chain's quoter, the self-validation
+      scoreboard, v3/v4 + protocol fee + hooked pools via the on-chain quoter, refusing partial fills, valuing bags at what a
+      pool would pay, factory verification as a filter, published alert thresholds, cross-chain execution
+- [x] Proves itself from the ledger (`lib/proof.ts`, swr 5 min, deliberately cheap queries only): pools indexed, v3/v4 split,
+      verified vs excluded, 24h fills, and the live % of replayed real swaps the engine reproduced exactly
+- [x] Limits stated on the same page as the claims (single-block quotes, no MEV modelling, finite liquidity window,
+      "verified" means real not safe, interpolated fill times, paper balances are not money)
+- [x] Every claim adversarially fact-checked against the code first; 22/23 survived, and the drafted copy was corrected where
+      it overstated (engine scope across chains; the v4 fee story replaced with the protocol surcharge that is actually charged)
+- [ ] Link `/how` from the marketing surfaces once they exist (OG image, landing hero)
