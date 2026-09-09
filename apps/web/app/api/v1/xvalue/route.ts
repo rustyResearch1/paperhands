@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
       const meta = await xtoken(chain, h.token).catch(() => null)
       let row: Row
       try {
-        const q = await xquote(chain, 'sell', h.token, BigInt(h.amount))
+        // Read-only: value the bag on the best route that exists, signable or not.
+      const q = await xquote(chain, 'sell', h.token, BigInt(h.amount), { signable: false })
         row = { token: h.token, amount: h.amount, symbol: meta?.symbol ?? h.token.slice(0, 6), decimals: meta?.decimals ?? 0, realizable: q.amountOut, fillRatio: q.fillRatio, source: q.route.source, route: q.route.label }
       } catch (err) {
         row = { token: h.token, amount: h.amount, symbol: meta?.symbol ?? h.token.slice(0, 6), decimals: meta?.decimals ?? 0, realizable: null, error: (err as Error).message.slice(0, 80) }

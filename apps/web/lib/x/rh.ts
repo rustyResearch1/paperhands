@@ -4,8 +4,11 @@ import { bestFill, walletSignable } from '../route'
 import type { XQuote, XToken } from './types'
 
 /** Robinhood Chain through our own engine and best-fill router (unchanged). */
-export async function rhQuote(side: 'buy' | 'sell', token: string, amountIn: bigint): Promise<XQuote> {
-  const r = await bestFill(token, side, amountIn, { executable: 'wallet' })
+export async function rhQuote(side: 'buy' | 'sell', token: string, amountIn: bigint, opts: { signable?: boolean } = {}): Promise<XQuote> {
+  // `signable` restricts the router to routes one wallet transaction can sign —
+  // right for anything that becomes a transaction, wrong for read-only
+  // valuation, where it discards hundreds of verified v4 pools.
+  const r = await bestFill(token, side, amountIn, opts.signable === false ? {} : { executable: 'wallet' })
   const meta = rhToken(token)
   const dec = meta?.decimals ?? 18
   const scale = 10 ** (dec - 18)

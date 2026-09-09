@@ -19,14 +19,15 @@ export function validTokenAddress(chain: XChain, address: string): boolean {
  * Best fill for `amountIn` of native (buys) or token (sells) on one chain.
  * Same honest shape everywhere: fill, impact, route, sold-right-back.
  */
-export async function xquote(chain: XChain, side: 'buy' | 'sell', token: string, amountIn: bigint): Promise<XQuote> {
+export async function xquote(chain: XChain, side: 'buy' | 'sell', token: string, amountIn: bigint, opts: { signable?: boolean } = {}): Promise<XQuote> {
   if (amountIn <= 0n) throw new Error('amount must be positive')
-  const key = `${chain}:${side}:${token.toLowerCase()}:${amountIn}`
+  const signable = opts.signable !== false
+  const key = `${chain}:${side}:${token.toLowerCase()}:${amountIn}:${signable ? 'sign' : 'read'}`
   // Same quote requested twice at once → computed once; RPC-heavy chains take a slot.
   return coalesce(key, () => {
     switch (chain) {
       case 'rh':
-        return quoteSemaphore.run(() => rhQuote(side, token.toLowerCase(), amountIn))
+        return quoteSemaphore.run(() => rhQuote(side, token.toLowerCase(), amountIn, { signable }))
       case 'sol':
         return solQuote(side, token, amountIn)
       case 'bsc':
