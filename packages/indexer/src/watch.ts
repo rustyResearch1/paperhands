@@ -198,7 +198,7 @@ export class Ingestor {
            FROM swaps s INDEXED BY swaps_block
            JOIN pools p ON p.address = s.pool
            JOIN tokens tq ON tq.address = CASE WHEN p.base_is_token0 = 1 THEN p.token1 ELSE p.token0 END
-           WHERE s.trader IS NULL AND s.block > (SELECT MAX(block) FROM swaps) - 10000
+           WHERE s.trader IS NULL AND p.base_is_token0 IS NOT NULL AND s.block > (SELECT MAX(block) FROM swaps) - 10000
            GROUP BY s.tx_hash
            ORDER BY sz DESC LIMIT ?
          )`,
