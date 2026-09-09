@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import IndexLine from '@/components/IndexLine'
 import { formatUsd, timeAgo } from '@/lib/format'
@@ -46,6 +47,7 @@ const pct = (n: number | null) => (n === null ? '—' : `${n >= 0 ? '+' : ''}${n
 export default function BasketCard({ address, ethUsd }: { address: string; ethUsd: number | null }) {
   const { mode } = useMode()
   const qc = useQueryClient()
+  const router = useRouter()
   const [days, setDays] = useState(7)
   const [amount, setAmount] = useState('1')
   const q = useQuery({
@@ -59,8 +61,8 @@ export default function BasketCard({ address, ethUsd }: { address: string; ethUs
     if (!r.ok) throw new Error(j.error ?? 'request failed')
     return j
   }
-  const back = useMutation({ mutationFn: () => post({ action: 'back', wallet: address, eth: amount }), onSuccess: () => qc.invalidateQueries({ queryKey: ['basket', address] }) })
-  const unwind = useMutation({ mutationFn: (id: number) => post({ action: 'unwind', id }), onSuccess: () => qc.invalidateQueries({ queryKey: ['basket', address] }) })
+  const back = useMutation({ mutationFn: () => post({ action: 'back', wallet: address, eth: amount }), onSuccess: () => { qc.invalidateQueries({ queryKey: ['basket', address] }); router.refresh() } })
+  const unwind = useMutation({ mutationFn: (id: number) => post({ action: 'unwind', id }), onSuccess: () => { qc.invalidateQueries({ queryKey: ['basket', address] }); router.refresh() } })
 
   if (q.isLoading) return <div className="card p-5 text-[13px] text-muted">Reading the wallet's bags…</div>
   const d = q.data

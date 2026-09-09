@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatUsd, timeAgo } from '@/lib/format'
 
 interface Backing {
@@ -21,6 +22,7 @@ const eth = (n: number, d = 3) => n.toLocaleString('en-US', { maximumFractionDig
 /** Paper baskets held on the practice bankroll, valued at last-trade marks. */
 export default function BackedBaskets({ ethUsd }: { ethUsd: number | null }) {
   const qc = useQueryClient()
+  const router = useRouter()
   const q = useQuery({ queryKey: ['baskets', 'mine'], queryFn: async () => (await fetch('/api/baskets?mine=1')).json() as Promise<{ backings: Backing[] }>, refetchInterval: 60_000 })
   const unwind = useMutation({
     mutationFn: async (id: number) => {
@@ -29,7 +31,10 @@ export default function BackedBaskets({ ethUsd }: { ethUsd: number | null }) {
       if (!r.ok) throw new Error(j.error ?? 'request failed')
       return j
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['baskets', 'mine'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['baskets', 'mine'] })
+      router.refresh()
+    },
   })
   const all = q.data?.backings ?? []
   const open = all.filter((b) => !b.closedTs)
