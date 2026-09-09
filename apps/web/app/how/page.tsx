@@ -58,7 +58,7 @@ export default async function How() {
         num="01"
         title="The engine runs the pool's own arithmetic"
         plain="On the pools we price ourselves, we did not approximate the maths. We reimplemented the exact calculation the Uniswap contract performs, down to the rounding, and we check it against the chain."
-        detail="The engine is a line-for-line port of Uniswap's core swap maths in whole-number arithmetic, walking the same tick-by-tick loop the pool executes. To prove it, we ask the chain's own quoter contract the identical question at the identical block and require both answers to match to the last wei — the amount out and the price the pool ends at."
+        detail="The engine is a line-for-line port of Uniswap's core swap maths in whole-number arithmetic, walking the same tick-by-tick loop the pool executes. To prove it, we ask the chain's own quoter contract the identical question at the identical block. On v3 pools both answers must match to the last wei — the amount out and the price the pool ends at. On v4 we check the amount out and allow a divergence smaller than a millionth of a millionth of the trade, because one rounding step there is not yet a perfect match. That gap is documented in the code rather than rounded away."
         why="If your quote comes from a different formula than the one that executes, it will disagree with reality exactly when it matters: on size, in thin liquidity, at speed."
       />
 
@@ -66,9 +66,9 @@ export default async function How() {
         num="02"
         title="It grades itself in public"
         plain="Every half hour the engine picks a busy pool, replays hundreds of that pool's real trades through itself, and records how many it reproduced exactly."
-        detail={`Recent runs sit between 75% and 100% depending on the pool. That number is published rather than rounded up, because the interesting part is where it is not 100% — usually a pool whose liquidity history we only partly reconstructed.${
-          p.replayedSwaps > 0 ? ` Right now: ${n(p.exactSwaps)} of ${n(p.replayedSwaps)} replayed swaps reproduced exactly across ${n(p.poolsValidated)} pools.` : ''
-        }`}
+        detail={`${
+          p.replayedSwaps > 0 ? `Right now: ${n(p.exactSwaps)} of ${n(p.replayedSwaps)} replayed swaps reproduced exactly, across ${n(p.poolsValidated)} pools. ` : ''
+        }Read that number with its sample in mind: it rotates through the busiest pools we can replay, not the whole market, and it skips hooked pools entirely because those are priced by the chain rather than by us. Runs land between 75% and 100%. Where it falls short it is usually a pool whose liquidity history we only partly reconstructed, not the swap maths — but we publish the figure rather than the best one.`}
         why="Anyone can claim their simulation is accurate. This one is falsifiable against a contract nobody here controls, and it runs whether or not anyone is watching."
       />
 
@@ -84,7 +84,7 @@ export default async function How() {
         num="04"
         title="It refuses rather than pretends"
         plain="Ask for more than a pool can absorb and you get 'only 38% of this fills', not an invented number. Practice orders are rejected on exactly the sizes that would fail for real."
-        detail="The simulator stops when it runs out of liquidity it can actually see, and reports how much of your order filled. Fees and price impact are reported as two separate numbers, with the fee removed from the impact figure, so a high-fee pool does not masquerade as a thin one."
+        detail="The simulator stops when it runs out of liquidity it can actually see, and reports how much of your order filled — enforced on the server, not by a greyed-out button. Fees and price impact are two separate numbers, with the fee taken out of the impact figure, so a high-fee pool does not masquerade as a thin one. Where the quote comes from someone else — hooked pools priced by the chain, and Solana priced by Jupiter — we cannot measure a partial fill and do not pretend to: those are reported as filling completely."
         why="Reporting a full fill on size a pool cannot take is the most common way a paper-trading tool teaches a habit that costs real money later."
       />
 
@@ -100,7 +100,7 @@ export default async function How() {
         num="06"
         title="The index trusts nothing it has not verified"
         plain="Pools are found by watching the entire chain for trades, so a new pool appears seconds after its first swap, with no listing step and nobody to ask. Then every one is checked against Uniswap's own factory before it counts."
-        detail={`Anyone can deploy a contract that emits the same events as a real pool — that is how fake volume and fake charts are made. Verification is a filter in every query that touches money, not a badge: ${n(p.pools - p.verifiedPools)} of ${n(p.pools)} indexed pools are recorded but excluded from the tape, the screener, profit and loss and the trade button. When a value cannot be read, we store nothing rather than a placeholder, because a guessed decimal place is a price wrong by a factor of a trillion.`}
+        detail={`Anyone can deploy a contract that emits the same events as a real pool — that is how fake volume and fake charts are made. Verification is a badge nowhere and a filter in about twenty different queries: ${n(p.pools - p.verifiedPools)} of ${n(p.pools)} indexed pools are recorded but kept out of the tape, the fresh-pool feed, the market stats, every alert, profit and loss, and the trade button. When a value cannot be read, we store nothing rather than a placeholder, because a guessed decimal place is a price wrong by a factor of a trillion.`}
         why="A screener that counts fake volume points you at the pool most likely to take your money."
       />
 
@@ -137,6 +137,12 @@ export default async function How() {
             <span className="font-semibold text-ink">Verified means real, not safe.</span> On v4 it means the official contract
             announced the pool. It says nothing about whether that pool&rsquo;s hook will treat you well, and we flag hooks rather
             than vouch for them.
+          </li>
+          <li>
+            <span className="font-semibold text-ink">On hooked pools, two of our numbers go blind.</span> The chain&rsquo;s quoter
+            tells us what you would receive but not where the pool ends up, so &ldquo;moves the pool&rdquo; and
+            &ldquo;sold right back&rdquo; cannot be measured there. Treat a near-zero price move on a hooked pool as unknown
+            rather than as good news.
           </li>
           <li>
             <span className="font-semibold text-ink">Times on fills are interpolated between real block headers</span>, so
