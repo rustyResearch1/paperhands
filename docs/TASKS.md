@@ -125,8 +125,12 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
       archive + WebSockets included) → `PAPERHANDS_RPC` = OrbitFlare Free now, Starter ($49/mo, 100 RPS) when the tape should
       run at full chain activity; `PAPERHANDS_RPC_WEB` = dRPC free (bursty quote traffic, 210M CU is plenty). Alchemy is
       Robinhood's official recommendation but its CU metering does not fit an indexer.
-- [ ] Watcher on the dedicated endpoint: measure real RPS against the plan's limit (does a JSON-RPC batch count as one request?),
-      then move attribution to batched `eth_getTransactionByHash` (100 per HTTP request) and pool-state reads to one multicall per tick
+- [x] Dedicated-endpoint client: token-bucket cap on HTTP requests (`PAPERHANDS_RPC_RPS`, default 8), JSON-RPC batch size
+      (`PAPERHANDS_RPC_BATCH`, default 100; 1 if the provider bills per call), public RPC as fallback; attribution fires 100
+      lookups at once so each batch is one request, and names the biggest fills first (quote leg in the token's own decimals,
+      ETH ×1000, priced pools only, last 10k blocks — 0.6s on a 20M-row ledger)
+- [ ] With the real key: measure RPS at the provider's dashboard vs `PAPERHANDS_RPC_RPS`; if batches bill per call set
+      `PAPERHANDS_RPC_BATCH=1` and `PAPERHANDS_ATTRIB_PER_TICK` to what 10 RPS affords (~20/tick); pool-state reads → one multicall
 - [ ] First real trade with your own wallet, small size: a v3 buy, a v4 hooked buy, a sell (Permit2 two-step), an LP mint + close.
       Every path is verified by eth_call, but no wallet has signed through the UI yet
 - [ ] Set `NEXT_PUBLIC_SITE_URL` + an OG image; create the GitHub repo and the X account (docs/LAUNCH.md)
