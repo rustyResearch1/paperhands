@@ -141,3 +141,40 @@ Differentiator: one terminal, honest numbers, best route per chain, cross-chain 
 - [x] README/docs refresh
 - [x] Deploy + smoke test on production (all pages + APIs incl. multi-chain; first scheduled validation on prod: 500 swaps, 100% exact)
 - [x] Markets screener precomputed by the watch loop every minute (stored JSON; live query only as fallback) — `/api/health` reports its age
+
+## Stage N — Audit pass (2026-09-09)
+Eight-dimension review; four dimensions completed before the budget ran out (UI consistency, performance, correctness,
+indexer robustness) and their findings were implemented directly.
+
+Correctness ✓
+- [x] cost-basis replay: the "sold more than we saw bought" flag was tested after qty was clamped, so it never fired and
+      realized P&L was overstated in silence (fires on 314/713 ranked positions)
+- [x] baskets: double unwind credited the bankroll twice — the conditional close is now the guard
+- [x] paper orders on Solana/BNB: balance read before an awaited quote, written after it
+- [x] attribution/prune: `INDEXED BY` on a late index throws at prepare time and would wedge the tick
+- [x] a rate-limited factory check no longer brands a real pool unverified forever
+- [x] wallet timeline paging, /api/handle error mapping, paper-portfolio error body
+
+Performance ✓ (single-threaded process: one slow query stalls everyone)
+- [x] the big one: cold heavy screens blocked the process (prod /baskets 52s, /x 27s, and /api/tape?stats=1 30s while they
+      built). `swrOrNull` + a "still building" card; every page now under 1.4s on the first hit after a deploy
+- [x] usage counters buffered in memory instead of a WAL write per request
+- [x] tape 24h fills from the watcher snapshot (2.9s → 0.002s); ETH/USD face pool resolved every 10 min
+- [x] wire replays each wallet once, not twice; leaderboard return computed from holdings, yields between wallets
+- [x] wallet bag valuations batched into one request (was six of a visitor's twenty per minute)
+- [x] /api/replay and /api/lp rate-limited; WAL journal_size_limit + TRUNCATE checkpoint; bounded caches
+- [x] prune deletes by indexed block instead of scanning 26M rows by ts; backups never leave a raw copy behind
+
+Design system ✓
+- [x] primitives moved into @layer base/components — unlayered CSS outranked every Tailwind utility written beside it,
+      so `class="card p-6"` silently kept the primitive's padding
+- [x] --on-fill token (white-on-light in dark mode), one Kpi/Row, PageHeader, Delta, NavLinks with aria-current
+- [x] /x and /docs reachable at last; mobile header controls no longer run off the edge; :focus-visible ring; type scale;
+      .txt for categorical table columns; format helpers a dozen pages had re-implemented
+
+Still open from the audit
+- [ ] `withFrozenSnapshots` is process-global: while a depth curve computes, other quotes reuse snapshots of any age
+- [ ] `rhQuote` forces wallet-signable routing, so read-only valuations exclude ~900 verified v4 pools
+- [ ] v4 liq backfill has no resume marker; unresolvable pools retried every tick without a negative cache
+- [ ] `ticketQuote` records block '0' on paper trades; block timestamps extrapolate from one anchor
+- [ ] four audit dimensions never ran: UX flows, mobile/a11y (partly covered), security, product gaps

@@ -247,11 +247,21 @@ async function pruneOldRows(db: Database.Database, nowSec: number) {
   const cutoff = nowSec - days * 86400
   const batch = 20_000
   let swaps = 0
-  for (;;) {
-    const n = db.prepare('DELETE FROM swaps WHERE rowid IN (SELECT rowid FROM swaps WHERE ts < ? LIMIT ?)').run(cutoff, batch).changes
-    swaps += n
-    if (n < batch) break
-    await new Promise((r) => setTimeout(r, 50))
+  // `ts` has no index, so deleting by it made the final batch a full-table scan
+  // inside a write transaction. Convert the cutoff to a block once (block IS
+  // indexed) and delete by that instead.
+  const cutoffBlock = (db.prepare('SELECT MAX(block) AS b FROM swaps WHERE ts < ?').get(cutoff) as { b: number | null }).b
+  if (cutoffBlock !== null) {
+    // Same rule as everywhere else: naming an index that is still being built
+    // throws when the statement is prepared, so only hint when it exists.
+    const hint = hasIndex(db, 'swaps_block') ? 'INDEXED BY swaps_block' : ''
+    const del = db.prepare(`DELETE FROM swaps WHERE rowid IN (SELECT rowid FROM swaps ${hint} WHERE block <= ? LIMIT ?)`)
+    for (;;) {
+      const n = del.run(cutoffBlock, batch).changes
+      swaps += n
+      if (n < batch) break
+      await new Promise((r) => setTimeout(r, 50))
+    }
   }
   const floor = (db.prepare('SELECT MIN(block) AS b FROM swaps').get() as { b: number | null }).b
   let liq = 0

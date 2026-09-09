@@ -22,26 +22,43 @@ interface ValueRow {
   error?: string
 }
 
-/** One best-route sell quote per bag, each resolving on its own so rows fill in as they land. */
+/**
+ * The bags' exit quotes in ONE request. The endpoint takes fifteen holdings per
+ * call but this asked for one bag per call, so a single wallet page spent six of
+ * the twenty requests a visitor gets per minute — three page views and you were
+ * rate-limited.
+ */
 function useBagValues(bags: OpenBag[]) {
   const top = bags.filter((b) => BigInt(b.openQtyRaw) > 0n).sort((a, b) => b.markEth - a.markEth).slice(0, 6)
-  const results = useQueries({
-    queries: top.map((b) => ({
-      queryKey: ['bagv', b.token, b.openQtyRaw],
-      queryFn: async (): Promise<number | null> => {
-        const r = (await (
-          await fetch('/api/v1/xvalue', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chain: 'rh', holdings: [{ token: b.token, amount: b.openQtyRaw }] }) })
-        ).json()) as { rows?: ValueRow[] }
-        const row = r.rows?.[0]
-        return row?.realizable && (row.fillRatio ?? 1) >= 0.999 ? Number(BigInt(row.realizable)) / 1e18 : null
+  const key = top.map((b) => `${b.token}:${b.openQtyRaw}`).join(',')
+  const [result] = useQueries({
+    queries: [
+      {
+        queryKey: ['bagv', key],
+        enabled: top.length > 0,
+        queryFn: async (): Promise<Record<string, number | null>> => {
+          const r = (await (
+            await fetch('/api/v1/xvalue', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ chain: 'rh', holdings: top.map((b) => ({ token: b.token, amount: b.openQtyRaw })) }),
+            })
+          ).json()) as { rows?: ValueRow[] }
+          const out: Record<string, number | null> = {}
+          for (const row of r.rows ?? []) {
+            out[row.token.toLowerCase()] = row.realizable && (row.fillRatio ?? 1) >= 0.999 ? Number(BigInt(row.realizable)) / 1e18 : null
+          }
+          return out
+        },
+        staleTime: 60_000,
+        retry: 1,
       },
-      staleTime: 60_000,
-      retry: 1,
-    })),
+    ],
   })
+  const loading = Boolean(result?.isLoading) && top.length > 0
   const map = new Map<string, { value: number | null; loading: boolean }>()
-  top.forEach((b, i) => map.set(b.token.toLowerCase(), { value: results[i]!.data ?? null, loading: results[i]!.isLoading }))
-  return { top, map, pending: results.filter((r) => r.isLoading).length }
+  for (const b of top) map.set(b.token.toLowerCase(), { value: result?.data?.[b.token.toLowerCase()] ?? null, loading })
+  return { top, map, pending: loading ? top.length : 0 }
 }
 
 /** Headline: unrealized P&L across the open bags, at what the pool would pay. */

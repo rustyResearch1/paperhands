@@ -20,9 +20,20 @@ export async function runBackup(db: Database.Database, dbPath: string, keep = 8)
   const raw = join(dir, `${stampName}.sqlite`)
   const gz = `${raw}.gz`
 
-  await db.backup(raw)
-  await pipeline(createReadStream(raw), createGzip({ level: 6 }), createWriteStream(gz))
-  unlinkSync(raw)
+  try {
+    await db.backup(raw)
+    await pipeline(createReadStream(raw), createGzip({ level: 6 }), createWriteStream(gz))
+  } finally {
+    // The raw copy is the size of the whole ledger: never leave one behind, and
+    // sweep any orphaned by an earlier crash before the disk fills.
+    for (const f of readdirSync(dir).filter((f) => f.startsWith('paperhands-') && f.endsWith('.sqlite'))) {
+      try {
+        unlinkSync(join(dir, f))
+      } catch {
+        // already gone
+      }
+    }
+  }
 
   const snapshots = readdirSync(dir)
     .filter((f) => f.startsWith('paperhands-') && f.endsWith('.sqlite.gz'))
