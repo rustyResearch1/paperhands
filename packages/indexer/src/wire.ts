@@ -62,16 +62,16 @@ export interface WireRankRow {
   worstSymbol: string | null
 }
 
-export function computeWireRank(db: Database.Database, limit = WIRE_RANK_ROWS, minTrades = WIRE_RANK_MIN_TRADES): WireRankRow[] {
-  return computeWireRankWithCloses(db, limit, minTrades).rows
+export async function computeWireRank(db: Database.Database, limit = WIRE_RANK_ROWS, minTrades = WIRE_RANK_MIN_TRADES): Promise<WireRankRow[]> {
+  return (await computeWireRankWithCloses(db, limit, minTrades)).rows
 }
 
 /** One cost-basis replay per wallet feeds both the ranking and the closed-trade feed. */
-export function computeWireRankWithCloses(
+export async function computeWireRankWithCloses(
   db: Database.Database,
   limit = WIRE_RANK_ROWS,
   minTrades = WIRE_RANK_MIN_TRADES,
-): { rows: WireRankRow[]; closes: TradeClose[]; baskets: StoredBasket[] } {
+): Promise<{ rows: WireRankRow[]; closes: TradeClose[]; baskets: StoredBasket[] }> {
   const rows = db
     .prepare(
       `SELECT trader, COUNT(*) AS trades, SUM(eth > 0) AS buys, SUM(eth < 0) AS sells,
@@ -105,13 +105,17 @@ export function computeWireRankWithCloses(
   }
   const closes: TradeClose[] = []
   const baskets: StoredBasket[] = []
-  const ranked = rows.map((r, i) => {
+  const ranked: WireRankRow[] = []
+  for (const [i, r] of rows.entries()) {
+    // Breathe every few wallets: each replay is synchronous SQLite, and this
+    // loop otherwise runs for minutes without letting anything else in.
+    if (i % 5 === 0) await new Promise((resolve) => setImmediate(resolve))
     const replay = replayTrader(db, r.trader)
     closes.push(...replay.closes)
     baskets.push(basketFromTokens(db, r.trader, i + 1, replay.tokens))
     const s = traderPnlSummary(replay.tokens)
-    return { ...r, openMarkEth: open.get(r.trader) ?? 0, realizedEth: s.realized, winRate: s.winRate, wins: s.wins, losses: s.losses, bestSymbol: s.bestSymbol, worstSymbol: s.worstSymbol }
-  })
+    ranked.push({ ...r, openMarkEth: open.get(r.trader) ?? 0, realizedEth: s.realized, winRate: s.winRate, wins: s.wins, losses: s.losses, bestSymbol: s.bestSymbol, worstSymbol: s.worstSymbol })
+  }
   return { rows: ranked, closes: pickCloses(closes), baskets }
 }
 
@@ -131,9 +135,9 @@ export function computeClosedTrades(db: Database.Database, traders: string[], li
 }
 
 /** Recompute and swap the table in one transaction; returns rows written. */
-export function refreshWireRank(db: Database.Database): number {
+export async function refreshWireRank(db: Database.Database): Promise<number> {
   ensureWireRank(db)
-  const { rows, closes, baskets } = computeWireRankWithCloses(db)
+  const { rows, closes, baskets } = await computeWireRankWithCloses(db)
   try {
     storeBaskets(db, baskets)
     setMeta(db, CLOSED_META_KEY, JSON.stringify(closes))

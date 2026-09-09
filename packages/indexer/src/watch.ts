@@ -388,7 +388,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         if ((nowSec >= bootGrace || wireEmpty) && nowSec - lastWire > 10 * 60) {
           lastWire = nowSec
           const t0 = Date.now()
-          const n = refreshWireRank(db)
+          const n = await refreshWireRank(db)
           console.log(`watch: wire rank refreshed (${n} wallets, ${Date.now() - t0}ms)`)
         }
         // Self-validation: replay one busy pool's recent swaps through the
