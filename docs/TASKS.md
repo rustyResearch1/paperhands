@@ -190,4 +190,8 @@ Still open from the audit
       "verified" means real not safe, interpolated fill times, paper balances are not money)
 - [x] Every claim adversarially fact-checked against the code first; 22/23 survived, and the drafted copy was corrected where
       it overstated (engine scope across chains; the v4 fee story replaced with the protocol surcharge that is actually charged)
+- [x] Post-ship fact-check corrections (the pass finished after the page went out): v3 vs v4 validation bar, the exactness
+      score's sample, verification filter scope, partial-fill refusal not applying to hooked/Jupiter quotes, and hooked pools
+      having no post-trade state
 - [ ] Link `/how` from the marketing surfaces once they exist (OG image, landing hero)
+- [ ] Consider surfacing the same hooked-pool caveat inline on token pages, where a near-zero price move currently reads as good news
