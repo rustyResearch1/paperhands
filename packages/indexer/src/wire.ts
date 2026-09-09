@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { basketFromTokens, storeBaskets, type StoredBasket } from './baskets.js'
 import { setMeta } from './db.js'
 import { replayTrader, traderPnlSummary, type TradeClose } from './pnl.js'
 
@@ -70,7 +71,7 @@ export function computeWireRankWithCloses(
   db: Database.Database,
   limit = WIRE_RANK_ROWS,
   minTrades = WIRE_RANK_MIN_TRADES,
-): { rows: WireRankRow[]; closes: TradeClose[] } {
+): { rows: WireRankRow[]; closes: TradeClose[]; baskets: StoredBasket[] } {
   const rows = db
     .prepare(
       `SELECT trader, COUNT(*) AS trades, SUM(eth > 0) AS buys, SUM(eth < 0) AS sells,
@@ -83,7 +84,7 @@ export function computeWireRankWithCloses(
        ORDER BY netFlowEth DESC LIMIT @limit`,
     )
     .all({ min: minTrades, limit }) as Omit<WireRankRow, 'openMarkEth' | 'realizedEth' | 'winRate' | 'wins' | 'losses' | 'bestSymbol' | 'worstSymbol'>[]
-  if (rows.length === 0) return { rows: [], closes: [] }
+  if (rows.length === 0) return { rows: [], closes: [], baskets: [] }
   const placeholders = rows.map(() => '?').join(',')
   const marks = db
     .prepare(
@@ -103,13 +104,15 @@ export function computeWireRankWithCloses(
     if (Number.isFinite(v) && v < 1e6) open.set(m.trader, (open.get(m.trader) ?? 0) + v)
   }
   const closes: TradeClose[] = []
-  const ranked = rows.map((r) => {
+  const baskets: StoredBasket[] = []
+  const ranked = rows.map((r, i) => {
     const replay = replayTrader(db, r.trader)
     closes.push(...replay.closes)
+    baskets.push(basketFromTokens(db, r.trader, i + 1, replay.tokens))
     const s = traderPnlSummary(replay.tokens)
     return { ...r, openMarkEth: open.get(r.trader) ?? 0, realizedEth: s.realized, winRate: s.winRate, wins: s.wins, losses: s.losses, bestSymbol: s.bestSymbol, worstSymbol: s.worstSymbol }
   })
-  return { rows: ranked, closes: pickCloses(closes) }
+  return { rows: ranked, closes: pickCloses(closes), baskets }
 }
 
 /** Pick the newest closes whose cost basis we actually saw. */
@@ -130,8 +133,9 @@ export function computeClosedTrades(db: Database.Database, traders: string[], li
 /** Recompute and swap the table in one transaction; returns rows written. */
 export function refreshWireRank(db: Database.Database): number {
   ensureWireRank(db)
-  const { rows, closes } = computeWireRankWithCloses(db)
+  const { rows, closes, baskets } = computeWireRankWithCloses(db)
   try {
+    storeBaskets(db, baskets)
     setMeta(db, CLOSED_META_KEY, JSON.stringify(closes))
     setMeta(db, CLOSED_TS_KEY, String(Math.floor(Date.now() / 1000)))
   } catch (err) {

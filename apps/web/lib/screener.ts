@@ -46,7 +46,11 @@ export function screenerRows(limit = 100, sort: ScreenerSort = 'vol', minDepthEt
   if (rowCache && Date.now() - rowCache.at < 5000) {
     return sortAndTrim(rowCache.rows, limit, sort, minDepthEth)
   }
-  const rows = storedSnapshot() ?? (screenerSnapshot(db) as ScreenerRow[])
+  // Prefer a stale snapshot over a live rebuild: right after a deploy the
+  // watcher has not refreshed yet, and running the live screener query on a
+  // request blocks this whole (synchronous, single-threaded) process. The live
+  // query stays as the fallback for a genuinely empty ledger only.
+  const rows = storedSnapshot() ?? storedSnapshot(Number.MAX_SAFE_INTEGER) ?? (screenerSnapshot(db) as ScreenerRow[])
   rowCache = { rows, at: Date.now() }
   return sortAndTrim(rows, limit, sort, minDepthEth)
 }

@@ -1,3 +1,4 @@
+import { BASKETS_META_KEY, type StoredBasket } from '@paperhands/indexer'
 import { db } from './db'
 import { swr, swrOrNull } from './swr'
 import { walletSummary } from './walletx'
@@ -294,11 +295,63 @@ export interface LeaderRow {
   backedEth: number
 }
 
-/** Cached rows, or null while the first build is still running. */
+/**
+ * The watcher stores this alongside the Wire ranking, built from the cost-basis
+ * replay it already runs. Reading one meta row keeps a page view off the
+ * critical path of thirty wallet replays.
+ */
 export function backersLeaderboardOrNull(limit = 30): LeaderRow[] | null {
-  return swrOrNull(`baskets:leaderboard:${limit}`, 120_000, () => buildLeaderboard(limit))
+  const stored = storedBaskets()
+  if (!stored) return null
+  const backing = openBackingByWallet()
+  return stored.slice(0, limit).map((b) => {
+    const w = wireRow(b.address)
+    const bk = backing.get(b.address)
+    return {
+      address: b.address,
+      rank: b.rank,
+      realizedEth: w?.realized_eth ?? 0,
+      winRate: w?.win_rate ?? null,
+      holdings: b.holdings.length,
+      top: b.holdings.slice(0, 3).map((h: StoredBasket['holdings'][number]) => h.symbol),
+      markEth: b.markEth,
+      return7dPct: b.return7dPct,
+      backers: bk?.n ?? 0,
+      backedEth: bk?.eth ?? 0,
+    }
+  })
 }
 
+function storedBaskets(): StoredBasket[] | null {
+  try {
+    const json = (db.prepare(`SELECT value FROM meta WHERE key = ?`).get(BASKETS_META_KEY) as { value: string } | undefined)?.value
+    return json ? (JSON.parse(json) as StoredBasket[]) : null
+  } catch {
+    return null
+  }
+}
+
+function wireRow(trader: string): { realized_eth: number; win_rate: number | null } | undefined {
+  try {
+    return db.prepare(`SELECT realized_eth, win_rate FROM wire_rank WHERE trader = ?`).get(trader) as { realized_eth: number; win_rate: number | null } | undefined
+  } catch {
+    return undefined
+  }
+}
+
+function openBackingByWallet(): Map<string, { n: number; eth: number }> {
+  const out = new Map<string, { n: number; eth: number }>()
+  for (const b of db.prepare(`SELECT wallet, COUNT(*) AS n, SUM(CAST(eth_in AS REAL)) AS eth FROM basket_positions WHERE closed_ts IS NULL GROUP BY wallet`).all() as {
+    wallet: string
+    n: number
+    eth: number
+  }[]) {
+    out.set(b.wallet, { n: b.n, eth: b.eth / WEI })
+  }
+  return out
+}
+
+/** Kept for scripts and the API's async path; the page uses the stored rows. */
 export function backersLeaderboard(limit = 30): Promise<LeaderRow[]> {
   return swr(`baskets:leaderboard:${limit}`, 120_000, () => buildLeaderboard(limit))
 }
