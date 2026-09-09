@@ -44,6 +44,7 @@ const NAV = [
   { href: '/portfolio', label: 'Portfolio', primary: true },
 ]
 const MORE = [
+  { href: '/how', label: 'How it works' },
   { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/docs', label: 'API docs' },
 ]
