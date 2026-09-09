@@ -13,6 +13,13 @@ export function openDb(path = process.env.PAPERHANDS_DB ?? defaultDbPath()): Dat
   const dir = dirname(path)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   const db = new Database(path)
+  // FIRST, before any statement that writes. `migrate` and `ensureLateIndexes`
+  // below both write, and openers race: the indexer, the web, and several
+  // `next build` workers can all reach this line at once. Without a busy
+  // timeout the loser fails instantly with SQLITE_BUSY — which is exactly how
+  // a production build died with "database is locked" while collecting page
+  // data. With it, the loser waits for the winner to finish.
+  db.pragma(`busy_timeout = ${Number(process.env.PAPERHANDS_BUSY_TIMEOUT_MS ?? 20_000)}`)
   db.pragma('journal_mode = WAL')
   db.pragma('synchronous = NORMAL')
   // Cap the write-ahead log at 256 MB on restart. Without this it only ever
@@ -23,6 +30,8 @@ export function openDb(path = process.env.PAPERHANDS_DB ?? defaultDbPath()): Dat
   ensureLateIndexes(db)
   return db
 }
+
+const isBusy = (err: unknown) => /SQLITE_BUSY|database is locked/i.test((err as Error)?.message ?? '')
 
 /**
  * Indexes added after the ledger grew large. Building one over tens of
@@ -62,6 +71,16 @@ export function hasIndex(db: Database.Database, name: string): boolean {
 }
 
 function migrate(db: Database.Database) {
+  try {
+    migrateInner(db)
+  } catch (err) {
+    if (!isBusy(err)) throw err
+    // Someone else is applying the identical schema right now; let them.
+    console.warn('migrate: another opener holds the write lock — continuing')
+  }
+}
+
+function migrateInner(db: Database.Database) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS tokens (
       address TEXT PRIMARY KEY,
