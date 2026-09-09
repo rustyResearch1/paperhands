@@ -185,17 +185,20 @@ export class Ingestor {
   async enrichTraders(limit = 120): Promise<number> {
     // Biggest fills first: on a capped RPC the lookup budget names the trades a trencher
     // cares about and lets the sub-dollar bot churn go unnamed. Size = the quote leg in
-    // human units, ETH weighted ×3000 so ETH- and USDG-quoted pools rank together (a
-    // priority, not a displayed number). Only the last ~30 minutes of blocks compete.
+    // human units (by the quote token's own decimals), ETH weighted ×1000 so ETH- and
+    // dollar-quoted pools rank together — a priority, not a displayed number. Only the
+    // last ~15 minutes of blocks compete; the block index keeps this ~0.5s on a big ledger.
     const rows = this.db
       .prepare(
         `SELECT tx_hash FROM (
            SELECT s.tx_hash,
                   MAX(ABS(CASE WHEN p.base_is_token0 = 1 THEN CAST(s.amount1 AS REAL) ELSE CAST(s.amount0 AS REAL) END)
-                      / (CASE WHEN COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH') THEN 1e15 ELSE 1e6 END)) AS sz
+                      / (CASE tq.decimals WHEN 6 THEN 1e6 WHEN 8 THEN 1e8 ELSE 1e18 END)
+                      * (CASE WHEN COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH') THEN 1000 ELSE 1 END)) AS sz
            FROM swaps s INDEXED BY swaps_block
            JOIN pools p ON p.address = s.pool
-           WHERE s.trader IS NULL AND s.block > (SELECT MAX(block) FROM swaps) - 20000
+           JOIN tokens tq ON tq.address = CASE WHEN p.base_is_token0 = 1 THEN p.token1 ELSE p.token0 END
+           WHERE s.trader IS NULL AND s.block > (SELECT MAX(block) FROM swaps) - 10000
            GROUP BY s.tx_hash
            ORDER BY sz DESC LIMIT ?
          )`,
