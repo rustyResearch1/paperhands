@@ -46,6 +46,9 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
               <a className="pill pill-pen" href={`${EXPLORER_URL}/address/${address}`} target="_blank" rel="noreferrer">
                 blockscout ↗
               </a>
+              <Link href={`/w/${address}/basket`} className="pill pill-pen">
+                basket →
+              </Link>
               {w.rank !== null && <span className="pill pill-up">#{w.rank} on the Wire</span>}
               {tail?.active ? <span className="pill pill-up">tailing</span> : null}
               {w.firstTs && (

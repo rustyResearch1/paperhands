@@ -1,3 +1,4 @@
+import { backersLeaderboard } from './baskets'
 import { compareAcrossChains } from './x/compare'
 import { lpScreen } from './x/lp'
 
@@ -18,6 +19,11 @@ export function startWarmup() {
     } catch {
       // logged by the screener itself
     }
+    try {
+      await backersLeaderboard(30)
+    } catch {
+      // the Wire may not be ranked yet
+    }
     for (const usd of [500, 100, 2000, 10_000]) {
       try {
         await compareAcrossChains(usd)
@@ -25,7 +31,7 @@ export function startWarmup() {
         // a venue being down must not stop the loop
       }
     }
-    console.log(`warm v2: lp screen + best-execution tables refreshed in ${Date.now() - t0}ms`)
+    console.log(`warm v3: lp screen + baskets leaderboard + best-execution tables refreshed in ${Date.now() - t0}ms`)
   }
   const t = setTimeout(() => {
     run()

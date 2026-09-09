@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import AccountKey from '@/components/AccountKey'
+import BackedBaskets from '@/components/BackedBaskets'
 import ModeGate from '@/components/ModeGate'
 import RealPortfolio from '@/components/RealPortfolio'
 import XPaperPortfolio from '@/components/XPaperPortfolio'
@@ -175,6 +176,7 @@ export default async function Portfolio() {
             <h2 className="text-[20px] font-semibold tracking-tight">Other chains · paper</h2>
             <p className="text-[13.5px] text-muted">10 paper SOL and 5 paper BNB, filled at the same quotes real orders get.</p>
           </div>
+          <BackedBaskets ethUsd={usdRate} />
           <XPaperPortfolio />
         </div>
       }
