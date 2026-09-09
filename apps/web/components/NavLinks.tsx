@@ -38,7 +38,7 @@ export default function NavLinks({ items, variant }: { items: { href: string; la
             key={n.href}
             href={n.href}
             aria-current={active ? 'page' : undefined}
-            className={`rounded-lg px-3 py-1.5 ${active ? 'bg-bg-2 font-semibold text-ink' : 'text-muted hover:bg-bg-2 hover:text-ink'}`}
+            className={`whitespace-nowrap rounded-lg px-3 py-1.5 ${active ? 'bg-bg-2 font-semibold text-ink' : 'text-muted hover:bg-bg-2 hover:text-ink'}`}
           >
             {n.label}
           </Link>

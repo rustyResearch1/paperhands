@@ -231,6 +231,12 @@
     background: transparent; color: var(--muted); border: 1px solid var(--line);
   }
   .chip:hover { color: var(--ink); border-color: var(--line-2); }
+  /* Touch: a 30px chip is below the comfortable target size, and hover states
+     never fire, so coarse pointers get a taller control instead. */
+  @media (pointer: coarse) {
+    .chip { height: 36px; padding: 0 14px; }
+    .btn-sm { height: 38px; }
+  }
   .chip-active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 
   .seg { display: inline-flex; padding: 3px; border-radius: var(--radius); background: var(--bg-3); gap: 2px; }
@@ -287,6 +293,15 @@
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
+
+  /* One visible focus ring for keyboard users — there was none at all. It only
+     shows for keyboard/AT focus, so pointer users see no change. */
+  :focus-visible {
+    outline: 2px solid var(--pen);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .btn:focus-visible, .chip:focus-visible, .pill:focus-visible { outline-offset: 3px; }
 
   /* text inputs: paper field, ink text, pen focus */
   .input {

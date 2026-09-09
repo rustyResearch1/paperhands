@@ -195,12 +195,12 @@ export default function LiveTape() {
               <thead>
                 <tr>
                   <th>Time</th>
-                  <th>Side</th>
-                  <th>Token</th>
+                  <th className="txt">Side</th>
+                  <th className="txt">Token</th>
                   <th>Size</th>
                   <th className="hidden xl:table-cell">Qty</th>
                   <th className="hidden 2xl:table-cell">Price</th>
-                  <th>Wallet</th>
+                  <th className="txt">Wallet</th>
                   <th className="hidden md:table-cell">Tx</th>
                 </tr>
               </thead>
@@ -208,10 +208,10 @@ export default function LiveTape() {
                 {fills.map((f) => (
                   <tr key={`${f.tx}:${f.logIndex}`} className="rise">
                     <td className="text-muted">{timeAgo(f.ts)}</td>
-                    <td>
+                    <td className="txt">
                       <span className={`pill ${f.side === 'buy' ? 'pill-up' : 'pill-down'}`}>{f.side}</span>
                     </td>
-                    <td>
+                    <td className="txt">
                       <Link href={`/t/${f.pool}`} className="font-semibold hover:text-pen">
                         {f.symbol}
                       </Link>
@@ -222,7 +222,7 @@ export default function LiveTape() {
                     </td>
                     <td className="hidden text-muted xl:table-cell">{fmtQty(f.qty)}</td>
                     <td className="hidden text-muted 2xl:table-cell">{f.price !== null ? `${formatPrice(f.price)} ETH` : '—'}</td>
-                    <td>
+                    <td className="txt num">
                       {f.trader ? (
                         <Link href={`/w/${f.trader}`} className="hover:text-pen">
                           {short(f.trader)}

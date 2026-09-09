@@ -39,7 +39,7 @@ const NAV = [
   { href: '/tape', label: 'Tape', primary: true },
   { href: '/baskets', label: 'Baskets', primary: true },
   { href: '/lp', label: 'LP', primary: false },
-  { href: '/x', label: 'Best execution', primary: false },
+  { href: '/x', label: 'Execution', primary: false },
   { href: '/wire', label: 'Wire', primary: true },
   { href: '/portfolio', label: 'Portfolio', primary: true },
 ]
@@ -57,18 +57,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Ambient />
           <header className="above sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-md">
             <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
-              <Link href="/" className="serif flex items-center gap-2 text-[19px] font-semibold tracking-tight">
+              <Link href="/" className="serif flex shrink-0 items-center gap-2 text-[19px] font-semibold tracking-tight">
                 <span className="inline-block h-5 w-5 rounded-[5px] bg-ink" aria-hidden="true" />
                 PaperHands
               </Link>
               <nav className="hidden items-center gap-1 text-[14px] lg:flex" aria-label="Main">
                 <NavLinks items={NAV} variant="header" />
               </nav>
-              <div className="ml-auto flex items-center gap-3">
+              <div className="ml-auto hidden items-center gap-3 sm:flex">
                 <ChainSwitch />
                 <ModeSwitch />
                 <WalletButton bankroll={formatEth(BigInt(user.balance_quote), 3)} />
               </div>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto border-t border-line px-4 py-2 sm:hidden">
+              <ChainSwitch />
+              <ModeSwitch />
+              <WalletButton bankroll={formatEth(BigInt(user.balance_quote), 3)} />
             </div>
           </header>
           <main className="above mx-auto max-w-6xl px-4 py-8">{children}</main>

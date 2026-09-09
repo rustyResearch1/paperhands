@@ -1,7 +1,10 @@
 import Link from 'next/link'
+import PageHeader from '@/components/PageHeader'
 import { backersLeaderboard } from '@/lib/baskets'
 import { formatUsd } from '@/lib/format'
 import { ethUsdRate } from '@/lib/usd'
+import Delta from '@/components/Delta'
+import { shortAddr } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Baskets' }
@@ -13,14 +16,17 @@ export default async function BasketsPage() {
   const rate = ethUsdRate()
   return (
     <div className="space-y-5">
-      <div className="rise">
-        <h1 className="text-[28px] font-semibold tracking-tight">Baskets</h1>
-        <p className="max-w-3xl text-muted">
+      <PageHeader
+        kicker="Social"
+        title="Baskets"
+        lede={
+          <>
           Every profitable wallet on the Wire, as a basket you can hold. Not copy-trading: you don&rsquo;t chase their fills, you hold what they hold, read straight from
           the chain and marked at the last trade. Back one on your practice bankroll today; the on-chain basket token, whose pool fees buy the wallet&rsquo;s bags, is the
-          next stage.
-        </p>
-      </div>
+            next stage.
+          </>
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[
@@ -46,8 +52,8 @@ export default async function BasketsPage() {
             <thead>
               <tr>
                 <th>#</th>
-                <th>Wallet</th>
-                <th>Basket</th>
+                <th className="txt">Wallet</th>
+                <th className="txt">Basket</th>
                 <th>Marked</th>
                 <th>7d as basket</th>
                 <th className="hidden md:table-cell">Realized</th>
@@ -59,12 +65,12 @@ export default async function BasketsPage() {
               {rows.map((r) => (
                 <tr key={r.address}>
                   <td className="text-muted">{r.rank}</td>
-                  <td>
-                    <Link href={`/w/${r.address}/basket`} className="num font-semibold hover:text-pen">
-                      {r.address.slice(0, 6)}…{r.address.slice(-4)}
+                  <td className="txt num">
+                    <Link href={`/w/${r.address}/basket`} className="font-semibold hover:text-pen">
+                      {shortAddr(r.address)}
                     </Link>
                   </td>
-                  <td className="text-left">
+                  <td className="txt">
                     {r.holdings === 0 ? (
                       <span className="text-faint">no marked bags</span>
                     ) : (
@@ -78,7 +84,9 @@ export default async function BasketsPage() {
                     {r.markEth.toFixed(2)} ETH
                     {rate && r.markEth > 0 && <span className="ml-1 text-[11px] text-faint">{formatUsd(r.markEth * rate)}</span>}
                   </td>
-                  <td className={r.return7dPct === null ? 'text-faint' : r.return7dPct >= 0 ? 'text-up' : 'text-down'}>{pct(r.return7dPct)}</td>
+                  <td>
+                    <Delta value={r.return7dPct} />
+                  </td>
                   <td className={`hidden md:table-cell ${r.realizedEth >= 0 ? 'text-up' : 'text-down'}`}>
                     {r.realizedEth >= 0 ? '+' : ''}
                     {r.realizedEth.toFixed(2)} ETH

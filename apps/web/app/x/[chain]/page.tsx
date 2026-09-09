@@ -6,6 +6,7 @@ import { formatPct, formatUsd } from '@/lib/format'
 import { isXChain } from '@/lib/x'
 import { topPools, trendingPools, type GtPool } from '@/lib/x/gecko'
 import { CHAIN_LABEL, NATIVE } from '@/lib/x/types'
+import Delta from '@/components/Delta'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,9 +81,15 @@ export default async function XMarkets({ params }: { params: Promise<{ chain: st
                       </Link>
                     </td>
                     <td>{p.priceUsd !== null ? formatUsd(p.priceUsd) : '—'}</td>
-                    <td className={`hidden md:table-cell ${p.change.m5 >= 0 ? 'text-up' : 'text-down'}`}>{formatPct(p.change.m5)}</td>
-                    <td className={p.change.h1 >= 0 ? 'text-up' : 'text-down'}>{formatPct(p.change.h1)}</td>
-                    <td className={`hidden md:table-cell ${p.change.h24 >= 0 ? 'text-up' : 'text-down'}`}>{formatPct(p.change.h24)}</td>
+                    <td className="hidden md:table-cell">
+                      <Delta value={p.change.m5} />
+                    </td>
+                    <td>
+                      <Delta value={p.change.h1} />
+                    </td>
+                    <td className="hidden md:table-cell">
+                      <Delta value={p.change.h24} />
+                    </td>
                     <td>{formatUsd(p.volume.h24)}</td>
                     <td className={`hidden md:table-cell ${p.reserveUsd < 20_000 ? 'text-down' : p.reserveUsd < 100_000 ? 'text-muted' : ''}`}>{formatUsd(p.reserveUsd)}</td>
                     <td className="hidden text-muted md:table-cell">

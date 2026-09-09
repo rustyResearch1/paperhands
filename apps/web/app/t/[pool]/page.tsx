@@ -16,6 +16,7 @@ import { getOrCreateUser } from '@/lib/session'
 import { isTokenizedStock } from '@/lib/stock'
 import { poolValidation } from '@/lib/validation'
 import { EXPLORER_URL } from '@paperhands/chain'
+import Delta from '@/components/Delta'
 
 export const dynamic = 'force-dynamic'
 
@@ -117,7 +118,9 @@ export default async function TokenPage({ params }: { params: Promise<{ pool: st
                 {priceUsd !== null ? formatUsd(priceUsd) : '—'}
               </span>
               {change24 !== null && (
-                <span className={`num text-[15px] font-semibold ${change24 >= 0 ? 'text-up' : 'text-down'}`}>{formatPct(change24)} 24h</span>
+                <span className="num text-[15px] font-semibold">
+                  <Delta value={change24} /> 24h
+                </span>
               )}
               <span className="num text-[13px] text-muted">
                 {formatPrice(lastClose ?? 0)} {meta.quoteSymbol}
