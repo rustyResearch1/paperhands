@@ -281,7 +281,7 @@ export async function resolvePool(
   return row
 }
 
-async function upsertToken(client: ChainClient, db: Database.Database, address: Address, block: bigint) {
+export async function upsertToken(client: ChainClient, db: Database.Database, address: Address, block: bigint) {
   const existing = db.prepare('SELECT address FROM tokens WHERE address = ?').get(address.toLowerCase())
   if (existing) return
   try {

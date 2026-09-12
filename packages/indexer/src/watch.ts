@@ -7,6 +7,7 @@ import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, hasIndex, setMeta } from './db.js'
 import { refreshAlerts } from './alerts.js'
+import { fetchPonsLogs, ingestPons } from './pons.js'
 import { refreshScreener } from './screener.js'
 import { BlockClock } from './timestamps.js'
 import { validateNextPool } from './validate.js'
@@ -351,6 +352,8 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         for (const init of v4.inits) await registerV4Pool(client, db, init)
         const r4 = await ingestor.ingest(v4.swaps)
         insertLiqEvents(db, v4.liq)
+        // PONS launchpad: launches, bonding-curve trades and graduations over the same range.
+        const pons = await ingestPons(client, db, await fetchPonsLogs(client, cursor + 1n, to), ingestor.clock)
         // Attribution (tx → wallet) is one lookup per transaction: 60 per tick
         // is all the public RPC tolerates; a dedicated endpoint gets thousands.
         const enriched = await ingestor.enrichTraders(Number(process.env.PAPERHANDS_ATTRIB_PER_TICK ?? (hasDedicatedRpc() ? 3000 : 60)))
@@ -408,7 +411,7 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
         }
         if (swaps.length + v4.swaps.length > 0) {
           console.log(
-            `watch: blocks→${to} v3=${ingested}/${swaps.length} v4=${r4.ingested}/${v4.swaps.length} newPools=${newPools + r4.newPools} traders+${enriched}`,
+            `watch: blocks→${to} v3=${ingested}/${swaps.length} v4=${r4.ingested}/${v4.swaps.length} newPools=${newPools + r4.newPools} traders+${enriched} pons: +${pons.launches} launches ${pons.trades} trades${pons.graduations ? ` ${pons.graduations} graduated` : ''}${pons.unknownCurves ? ` (${pons.unknownCurves} unknown curves pending)` : ''}`,
           )
         }
       }

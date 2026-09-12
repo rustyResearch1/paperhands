@@ -195,6 +195,60 @@ function migrateInner(db: Database.Database) {
     -- "burns in the last N blocks" (alerts) without scanning the table
     CREATE INDEX IF NOT EXISTS liq_kind_block ON liq_events(kind, block);
 
+    -- PONS launchpad: every launch and every bonding-curve trade before graduation.
+    -- Raw sums are REAL (they feed progress bars and sort orders, not settlement);
+    -- the per-trade rows keep exact raw amounts as TEXT.
+    CREATE TABLE IF NOT EXISTS launches (
+      token TEXT PRIMARY KEY,
+      curve TEXT NOT NULL,
+      deployer TEXT NOT NULL,
+      pair_token TEXT NOT NULL,
+      config_id INTEGER NOT NULL,
+      graduation_threshold TEXT NOT NULL,
+      launch_block INTEGER NOT NULL,
+      launch_ts INTEGER NOT NULL,
+      launch_tx TEXT NOT NULL,
+      buys INTEGER NOT NULL DEFAULT 0,
+      sells INTEGER NOT NULL DEFAULT 0,
+      traders INTEGER NOT NULL DEFAULT 0,
+      quote_in REAL NOT NULL DEFAULT 0,
+      quote_out REAL NOT NULL DEFAULT 0,
+      fees REAL NOT NULL DEFAULT 0,
+      taxes REAL NOT NULL DEFAULT 0,
+      tokens_out REAL NOT NULL DEFAULT 0,
+      tokens_in REAL NOT NULL DEFAULT 0,
+      last_trade_block INTEGER,
+      last_price REAL,
+      graduated_block INTEGER,
+      graduated_ts INTEGER,
+      graduation_tx TEXT,
+      pool TEXT
+    );
+    CREATE INDEX IF NOT EXISTS launches_launch_block ON launches(launch_block);
+    CREATE INDEX IF NOT EXISTS launches_deployer ON launches(deployer);
+    CREATE INDEX IF NOT EXISTS launches_last_trade ON launches(last_trade_block);
+    CREATE INDEX IF NOT EXISTS launches_curve ON launches(curve);
+
+    CREATE TABLE IF NOT EXISTS curve_trades (
+      tx_hash TEXT NOT NULL,
+      log_index INTEGER NOT NULL,
+      curve TEXT NOT NULL,
+      token TEXT NOT NULL,
+      block INTEGER NOT NULL,
+      ts INTEGER NOT NULL,
+      side TEXT NOT NULL CHECK (side IN ('buy','sell')),
+      trader TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      quote_raw TEXT NOT NULL,
+      tokens_raw TEXT NOT NULL,
+      fee_raw TEXT NOT NULL,
+      tax_raw TEXT NOT NULL,
+      PRIMARY KEY (tx_hash, log_index)
+    );
+    CREATE INDEX IF NOT EXISTS curve_trades_token_block ON curve_trades(token, block);
+    CREATE INDEX IF NOT EXISTS curve_trades_trader_block ON curve_trades(trader, block);
+    CREATE INDEX IF NOT EXISTS curve_trades_block ON curve_trades(block);
+
     -- KOL tailing: mirror a wallet's buys with a fixed size, exit when it exits
     CREATE TABLE IF NOT EXISTS kol_tails (
       user_id TEXT NOT NULL,

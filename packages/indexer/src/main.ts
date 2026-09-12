@@ -3,6 +3,8 @@ import { getMeta, openDb, setMeta } from './db.js'
 import { fetchLiqLogs, fetchSwapLogs, insertLiqEvents } from './discover.js'
 import { replayPool } from './history.js'
 import { Ingestor, watchLoop } from './watch.js'
+import { fetchPonsLogs, ingestPons } from './pons.js'
+import { BlockClock } from './timestamps.js'
 
 const cmd = process.argv[2] ?? 'all'
 const client = makeClient()
@@ -168,6 +170,41 @@ async function replayValidate(poolArg?: string) {
   )
 }
 
+
+/**
+ * PONS history: launches, curve trades and graduations over the last N blocks,
+ * in small chunks with a pause between them so the public RPC tolerates it.
+ * Idempotent (primary keys), so re-running only fills gaps.
+ */
+async function ponsBackfill(blocks = 20_000n) {
+  const latest = await client.getBlockNumber()
+  const from = latest > blocks ? latest - blocks : 1n
+  const clock = new BlockClock(client)
+  await clock.sync()
+  const chunk = 600n
+  let totals = { launches: 0, trades: 0, graduations: 0 }
+  for (let start = from; start <= latest; start += chunk) {
+    const end = start + chunk - 1n > latest ? latest : start + chunk - 1n
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const r = await ingestPons(client, db, await fetchPonsLogs(client, start, end), clock, 30)
+        totals = { launches: totals.launches + r.launches, trades: totals.trades + r.trades, graduations: totals.graduations + r.graduations }
+        console.log(`pons: ${start}..${end} +${r.launches} launches ${r.trades} trades ${r.graduations} graduated${r.unknownCurves ? ` (${r.unknownCurves} curves pending)` : ''}`)
+        break
+      } catch (err) {
+        if (attempt >= 5) throw err
+        await new Promise((r) => setTimeout(r, 8000 * (attempt + 1)))
+      }
+    }
+    await new Promise((r) => setTimeout(r, 300))
+  }
+  console.log(`pons: done — ${totals.launches} launches, ${totals.trades} trades, ${totals.graduations} graduations over ${blocks} blocks`)
+}
+
+if (cmd === 'pons-backfill') {
+  await ponsBackfill(BigInt(process.argv[3] ?? '20000'))
+  process.exit(0)
+}
 if (cmd === 'discover') {
   await discover()
   process.exit(0)
