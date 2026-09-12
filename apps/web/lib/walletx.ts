@@ -98,12 +98,15 @@ export interface SwapLine {
   ts: number
   tx: string
   pool: string
+  token: string
   symbol: string
   side: 'buy' | 'sell'
   qty: number
   eth: number
   /** ETH per token on this fill. */
   price: number | null
+  /** Where it filled: a Uniswap pool, or a PONS bonding curve before graduation. */
+  venue: 'pool' | 'curve'
 }
 
 interface SwapRow {
@@ -128,22 +131,38 @@ export function walletSwapLines(address: string, page = 1, size = 60): { lines: 
       )
       .get(key) as { n: number }
   ).n
+  // One timeline across both venues: Uniswap fills and PONS curve trades (ETH-quoted
+  // launches), newest first. Curve rows carry the graduated pool when there is one.
   const rows = db
     .prepare(
-      `SELECT s.pool, s.ts, s.tx_hash, s.amount0, s.amount1, p.base_is_token0, tb.symbol AS symbol, tb.decimals AS decimals
-       FROM swaps s
-       JOIN pools p ON p.address = s.pool
-       JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
-       WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
-       ORDER BY s.block DESC, s.log_index DESC LIMIT ? OFFSET ?`,
+      `SELECT * FROM (
+         SELECT s.pool, s.ts, s.tx_hash, s.block, s.log_index, s.amount0, s.amount1, p.base_is_token0,
+                tb.symbol AS symbol, tb.decimals AS decimals, tb.address AS token, 'pool' AS venue
+         FROM swaps s
+         JOIN pools p ON p.address = s.pool
+         JOIN tokens tb ON tb.address = CASE WHEN p.base_is_token0 = 1 THEN p.token0 ELSE p.token1 END
+         WHERE s.trader = ? AND p.base_is_token0 IS NOT NULL AND COALESCE(p.quote_symbol,'WETH') IN ('WETH','ETH')
+         UNION ALL
+         SELECT COALESCE(l.pool, 'launch:' || c.token) AS pool, c.ts, c.tx_hash, c.block, c.log_index,
+                CASE WHEN c.side = 'buy' THEN '-' || c.tokens_raw ELSE c.tokens_raw END AS amount0,
+                CASE WHEN c.side = 'buy' THEN c.quote_raw ELSE '-' || c.quote_raw END AS amount1,
+                1 AS base_is_token0, t.symbol, t.decimals, c.token, 'curve' AS venue
+         FROM curve_trades c JOIN launches l ON l.token = c.token JOIN tokens t ON t.address = c.token
+         WHERE c.trader = ? AND l.pair_token = '0x0000000000000000000000000000000000000000'
+       ) ORDER BY block DESC, log_index DESC LIMIT ? OFFSET ?`,
     )
-    .all(key, size, (page - 1) * size) as SwapRow[]
+    .all(key, key, size, (page - 1) * size) as (SwapRow & { token: string; venue: 'pool' | 'curve' })[]
+  const curveTotal = (
+    db
+      .prepare(`SELECT COUNT(*) AS n FROM curve_trades c JOIN launches l ON l.token = c.token WHERE c.trader = ? AND l.pair_token = '0x0000000000000000000000000000000000000000'`)
+      .get(key) as { n: number }
+  ).n
   return {
-    total,
+    total: total + curveTotal,
     lines: rows.map((r) => {
       const eth = Number(r.base_is_token0 === 1 ? r.amount1 : r.amount0) / 1e18
       const qty = Math.abs(Number(r.base_is_token0 === 1 ? r.amount0 : r.amount1)) / 10 ** r.decimals
-      return { ts: r.ts, tx: r.tx_hash, pool: r.pool, symbol: r.symbol, side: eth > 0 ? 'buy' : 'sell', qty, eth: Math.abs(eth), price: qty > 0 ? Math.abs(eth) / qty : null }
+      return { ts: r.ts, tx: r.tx_hash, pool: r.pool, token: r.token, symbol: r.symbol, side: eth > 0 ? 'buy' : 'sell', qty, eth: Math.abs(eth), price: qty > 0 ? Math.abs(eth) / qty : null, venue: r.venue }
     }),
   }
 }

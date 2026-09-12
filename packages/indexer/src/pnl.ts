@@ -54,15 +54,56 @@ interface Row {
   symbol: string
   decimals: number
   baseAddr: string
+  block?: number
+  log_index?: number
+}
+
+/**
+ * The wallet's PONS curve trades on ETH-quoted launches, shaped like swap rows
+ * so the replay below treats a curve buy exactly like a pool buy: quote in
+ * (positive), tokens out (negative). `pool` is the graduated v4 pool when one
+ * exists, else a `launch:` marker the UI turns into the launch page.
+ */
+function curveRows(db: Database.Database, trader: string): Row[] {
+  try {
+    return (
+      db
+        .prepare(
+          `SELECT c.block, c.log_index, c.ts, c.tx_hash, c.side, c.quote_raw, c.tokens_raw, c.token,
+                  t.symbol, t.decimals, COALESCE(l.pool, 'launch:' || c.token) AS pool
+           FROM curve_trades c
+           JOIN launches l ON l.token = c.token
+           JOIN tokens t ON t.address = c.token
+           WHERE c.trader = ? AND l.pair_token = '0x0000000000000000000000000000000000000000'`,
+        )
+        .all(trader) as { block: number; log_index: number; ts: number; tx_hash: string; side: 'buy' | 'sell'; quote_raw: string; tokens_raw: string; token: string; symbol: string; decimals: number; pool: string }[]
+    ).map((r) => ({
+      pool: r.pool,
+      ts: r.ts,
+      tx_hash: r.tx_hash,
+      // base_is_token0 = 1 → amount0 is the token leg, amount1 the quote leg.
+      amount0: r.side === 'buy' ? `-${r.tokens_raw}` : r.tokens_raw,
+      amount1: r.side === 'buy' ? r.quote_raw : `-${r.quote_raw}`,
+      base_is_token0: 1,
+      symbol: r.symbol,
+      decimals: r.decimals,
+      baseAddr: r.token,
+      block: r.block,
+      log_index: r.log_index,
+    }))
+  } catch {
+    // launchpad tables not present yet
+    return []
+  }
 }
 
 const CASH = new Set(['USDG', 'USDE', 'WETH', 'USDC', 'USDT'])
 
 export function replayTrader(db: Database.Database, trader: string): { tokens: TraderTokenPnl[]; closes: TradeClose[] } {
   const t = trader.toLowerCase()
-  const rows = db
+  const swapRows = db
     .prepare(
-      `SELECT s.pool, s.ts, s.tx_hash, s.amount0, s.amount1, p.base_is_token0,
+      `SELECT s.pool, s.ts, s.tx_hash, s.amount0, s.amount1, p.base_is_token0, s.block, s.log_index,
               tb.symbol AS symbol, tb.decimals AS decimals, tb.address AS baseAddr
        FROM swaps s
        JOIN pools p ON p.address = s.pool
@@ -71,6 +112,9 @@ export function replayTrader(db: Database.Database, trader: string): { tokens: T
        ORDER BY s.block ASC, s.log_index ASC`,
     )
     .all(t) as Row[]
+  // Curve buys before graduation + pool sells after it replay as one position.
+  const curve = curveRows(db, t)
+  const rows = curve.length === 0 ? swapRows : [...swapRows, ...curve].sort((a, b) => (a.block ?? 0) - (b.block ?? 0) || (a.log_index ?? 0) - (b.log_index ?? 0))
   const by = new Map<string, TraderTokenPnl & { qty: number; openedTs: number }>()
   const closes: TradeClose[] = []
   for (const r of rows) {

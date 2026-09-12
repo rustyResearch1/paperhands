@@ -160,9 +160,14 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
                     <tr key={t.token}>
                       <td>
                         <span className="flex items-center gap-2">
-                          <Link href={`/t/${t.pool}`} className="font-semibold hover:text-pen">
+                          <Link href={t.pool.startsWith('launch:') ? `/launch/${t.token}` : `/t/${t.pool}`} className="font-semibold hover:text-pen">
                             {t.symbol}
                           </Link>
+                          {t.pool.startsWith('launch:') && (
+                            <span className="pill pill-pen" title="bought on the PONS bonding curve, not yet graduated">
+                              curve
+                            </span>
+                          )}
                           <CopyAddress address={t.token} label="CA" className="!h-6 !px-2 !text-[11px]" />
                           {t.untracked && (
                             <span className="pill pill-warn" title="Sold more than the ledger saw bought; earlier buys predate the window, so cost is understated">
@@ -232,9 +237,14 @@ export default async function WalletPage({ params, searchParams }: { params: Pro
                         <span className={`pill ${s.side === 'buy' ? 'pill-up' : 'pill-down'}`}>{s.side}</span>
                       </td>
                       <td>
-                        <Link href={`/t/${s.pool}`} className="font-semibold hover:text-pen">
+                        <Link href={s.pool.startsWith('launch:') ? `/launch/${s.token}` : `/t/${s.pool}`} className="font-semibold hover:text-pen">
                           {s.symbol}
                         </Link>
+                        {s.venue === 'curve' && (
+                          <span className="ml-1 pill pill-pen" title="filled on the PONS bonding curve">
+                            curve
+                          </span>
+                        )}
                       </td>
                       <td className="text-muted">{fmt(s.qty, 0)}</td>
                       <td>
