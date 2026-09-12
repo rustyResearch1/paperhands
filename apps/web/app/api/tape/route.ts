@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { limitHeaders, rateLimit } from '@/lib/ratelimit'
-import { closedTrades, freshPools, latestFills, tapeStats, tipBlock } from '@/lib/tape'
+import { closedTrades, freshPools, latestCurveFills, latestFills, tapeStats, tipBlock } from '@/lib/tape'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +20,15 @@ export async function GET(req: NextRequest) {
     if (q.get('closed')) return NextResponse.json(closedTrades(Math.min(300, Number(q.get('limit') ?? 100))), { headers })
     const since = q.get('since')
     const side = q.get('side')
+    if (q.get('launchpad') === '1') {
+      const fills = latestCurveFills({
+        sinceBlock: since ? Number(since) : undefined,
+        limit: Number(q.get('limit') ?? 120),
+        side: side === 'buy' || side === 'sell' ? side : undefined,
+        minUsd: Number(q.get('minUsd') ?? 0) || undefined,
+      })
+      return NextResponse.json({ fills, tip: tipBlock(), at: Date.now() }, { headers })
+    }
     const fills = latestFills({
       sinceBlock: since ? Number(since) : undefined,
       limit: Number(q.get('limit') ?? 120),

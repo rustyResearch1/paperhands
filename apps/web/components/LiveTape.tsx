@@ -93,7 +93,8 @@ function beep(ctx: AudioContext, side: 'buy' | 'sell') {
  * dedicated RPC makes the ledger itself tick every few seconds.
  */
 export default function LiveTape() {
-  const [tracked, setTracked] = useState(true)
+  const [source, setSource] = useState<'tracked' | 'everyone' | 'launchpad'>('tracked')
+  const tracked = source === 'tracked'
   const [side, setSide] = useState<'all' | 'buy' | 'sell'>('all')
   const [minUsd, setMinUsd] = useState(0)
   const [sound, setSound] = useState(false)
@@ -107,7 +108,7 @@ export default function LiveTape() {
     setFills([])
     lastBlock.current = 0
     seen.current.clear()
-  }, [tracked, side, minUsd])
+  }, [source, side, minUsd])
 
   useEffect(() => {
     let stopped = false
@@ -115,6 +116,7 @@ export default function LiveTape() {
       if (stopped) return
       try {
         const q = new URLSearchParams({ limit: '120', tracked: tracked ? '1' : '0' })
+        if (source === 'launchpad') q.set('launchpad', '1')
         if (side !== 'all') q.set('side', side)
         if (minUsd) q.set('minUsd', String(minUsd))
         if (lastBlock.current) q.set('since', String(lastBlock.current))
@@ -137,7 +139,7 @@ export default function LiveTape() {
     return () => {
       stopped = true
     }
-  }, [tracked, side, minUsd, sound])
+  }, [source, tracked, side, minUsd, sound])
 
   const stats = useQuery({ queryKey: ['tape', 'stats'], queryFn: async () => (await fetch('/api/tape?stats=1')).json() as Promise<Stats>, refetchInterval: 30_000 })
   const fresh = useQuery({ queryKey: ['tape', 'fresh'], queryFn: async () => (await fetch('/api/tape?fresh=1&limit=16')).json() as Promise<{ pools: Fresh[] }>, refetchInterval: 30_000 })
@@ -160,11 +162,14 @@ export default function LiveTape() {
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
             <span className="label">Live tape</span>
             <div className="flex flex-wrap items-center gap-1.5">
-              <button className={`chip h-7 px-2.5 text-[12px] ${tracked ? 'chip-active' : ''}`} onClick={() => setTracked(true)}>
+              <button className={`chip h-7 px-2.5 text-[12px] ${source === 'tracked' ? 'chip-active' : ''}`} onClick={() => setSource('tracked')}>
                 tracked
               </button>
-              <button className={`chip h-7 px-2.5 text-[12px] ${!tracked ? 'chip-active' : ''}`} onClick={() => setTracked(false)}>
+              <button className={`chip h-7 px-2.5 text-[12px] ${source === 'everyone' ? 'chip-active' : ''}`} onClick={() => setSource('everyone')}>
                 everyone
+              </button>
+              <button className={`chip h-7 px-2.5 text-[12px] ${source === 'launchpad' ? 'chip-active' : ''}`} onClick={() => setSource('launchpad')} title="PONS bonding-curve trades, before graduation">
+                launchpad
               </button>
               <span className="mx-1 text-faint">·</span>
               {(['all', 'buy', 'sell'] as const).map((v) => (
@@ -212,9 +217,10 @@ export default function LiveTape() {
                       <span className={`pill ${f.side === 'buy' ? 'pill-up' : 'pill-down'}`}>{f.side}</span>
                     </td>
                     <td className="txt">
-                      <Link href={`/t/${f.pool}`} className="font-semibold hover:text-pen">
+                      <Link href={f.pool.startsWith('launch:') ? `/launch/${f.token}` : `/t/${f.pool}`} className="font-semibold hover:text-pen">
                         {f.symbol}
                       </Link>
+                      {source === 'launchpad' && f.quoteSymbol !== 'ETH' && <span className="ml-1 pill pill-warn">{f.quoteSymbol}</span>}
                     </td>
                     <td className={`font-semibold ${f.side === 'buy' ? 'text-up' : 'text-down'}`}>
                       {f.usd !== null ? formatUsd(f.usd) : `${f.quote.toFixed(3)} ${f.quoteSymbol}`}
@@ -242,7 +248,7 @@ export default function LiveTape() {
                 {fills.length === 0 && (
                   <tr>
                     <td colSpan={8} className="text-center text-muted">
-                      {tracked ? 'Waiting for the tracked wallets to trade… switch to "everyone" for the full chain.' : 'Listening…'}
+                      {source === 'tracked' ? 'Waiting for the tracked wallets to trade… switch to "everyone" for the full chain.' : source === 'launchpad' ? 'Listening to the bonding curves…' : 'Listening…'}
                     </td>
                   </tr>
                 )}

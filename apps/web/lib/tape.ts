@@ -1,5 +1,6 @@
 import { CLOSED_META_KEY, CLOSED_TS_KEY, type TradeClose } from '@paperhands/indexer'
 import { db } from './db'
+import { quoteTokenUsd } from './launches'
 import { storedSnapshot } from './screener'
 import { ethUsdRate } from './usd'
 
@@ -164,6 +165,74 @@ export function latestFills(opts: { sinceBlock?: number; limit?: number; tracked
       price: isEth && qty > 0 ? quote / qty : null,
       trader: r.trader,
       rank: r.trader ? (ranked.get(r.trader) ?? null) : null,
+    })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/**
+ * The launchpad stream: PONS bonding-curve trades shaped like tape fills. The
+ * trader is always known here (the curve's events name the buyer), the quote
+ * may be ETH, USDG or a tokenized stock, and `pool` is the graduated v4 pool
+ * or a `launch:` marker the tape turns into a launch-page link.
+ */
+export function latestCurveFills(opts: { sinceBlock?: number; limit?: number; side?: 'buy' | 'sell'; minUsd?: number } = {}): TapeFill[] {
+  const limit = Math.min(300, Math.max(1, opts.limit ?? 120))
+  const ranked = rankedWallets()
+  const tip = Number((db.prepare(`SELECT MAX(block) AS b FROM curve_trades`).get() as { b: number | null }).b ?? 0)
+  const since = opts.sinceBlock ?? Math.max(0, tip - 3600 * 10)
+  const rows = db
+    .prepare(
+      `SELECT c.block, c.ts, c.tx_hash, c.log_index, c.side, c.trader, c.quote_raw, c.tokens_raw, c.token,
+              t.symbol, t.decimals, l.pair_token, COALESCE(q.symbol, 'ETH') AS qsym, COALESCE(q.decimals, 18) AS qdec, l.pool
+       FROM curve_trades c
+       JOIN launches l ON l.token = c.token
+       JOIN tokens t ON t.address = c.token
+       LEFT JOIN tokens q ON q.address = l.pair_token
+       WHERE c.block > ? ${opts.side ? `AND c.side = '${opts.side}'` : ''}
+       ORDER BY c.block DESC, c.log_index DESC LIMIT ?`,
+    )
+    .all(since, opts.minUsd ? limit * 6 : limit) as {
+    block: number
+    ts: number
+    tx_hash: string
+    log_index: number
+    side: 'buy' | 'sell'
+    trader: string
+    quote_raw: string
+    tokens_raw: string
+    token: string
+    symbol: string
+    decimals: number
+    pair_token: string
+    qsym: string
+    qdec: number
+    pool: string | null
+  }[]
+  const out: TapeFill[] = []
+  for (const r of rows) {
+    const quote = Number(r.quote_raw) / 10 ** r.qdec
+    const qty = Number(r.tokens_raw) / 10 ** r.decimals
+    const px = quoteTokenUsd(r.pair_token)
+    const usd = px !== null ? quote * px : null
+    if (opts.minUsd && usd !== null && usd < opts.minUsd) continue
+    out.push({
+      block: r.block,
+      ts: r.ts,
+      tx: r.tx_hash,
+      logIndex: r.log_index,
+      pool: r.pool ?? `launch:${r.token}`,
+      token: r.token,
+      symbol: r.symbol,
+      side: r.side,
+      qty,
+      quote,
+      quoteSymbol: r.qsym,
+      usd,
+      price: qty > 0 && r.qsym === 'ETH' ? quote / qty : null,
+      trader: r.trader,
+      rank: ranked.get(r.trader) ?? null,
     })
     if (out.length >= limit) break
   }
