@@ -17,6 +17,19 @@ export const robinhoodChain = defineChain({
 export const hasDedicatedRpc = (url = process.env.PAPERHANDS_RPC) => Boolean(url && url !== RPC_URL)
 
 /**
+ * Strip credentials out of anything we are about to log. Providers authenticate
+ * on the query string (OrbitFlare: `?api_key=…`), and viem puts the full request
+ * URL in its error messages — so logging a failed request verbatim would publish
+ * the key into the platform's log stream, where it is readable forever.
+ */
+export function redact(text: string): string {
+  return text
+    .replace(/([?&])(api[_-]?key|apikey|key|token|access[_-]?token)=[^&\s"']+/gi, '$1$2=***')
+    .replace(/\/v2\/[A-Za-z0-9_-]{16,}/g, '/v2/***')
+    .replace(/\b(ORBIT-[A-Z0-9]+-[0-9]+-[0-9]+)\b/g, '***')
+}
+
+/**
  * Token bucket in front of a transport: at most `rps` HTTP requests per second,
  * bursts up to one second's worth. Free RPC plans cap requests per second and
  * answer the excess with 429s that cost retries and, on some providers, a

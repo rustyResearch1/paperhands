@@ -1,4 +1,4 @@
-import { hasDedicatedRpc, type ChainClient } from '@paperhands/chain'
+import { hasDedicatedRpc, redact, type ChainClient } from '@paperhands/chain'
 import type Database from 'better-sqlite3'
 import type { Address } from 'viem'
 import { fetchLiqLogs, fetchSwapLogs, insertLiqEvents, resolvePool, type DecodedSwap } from './discover.js'
@@ -417,7 +417,8 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
       if (chunk > 500n) chunk /= 2n
       failures++
       const e = err as { message: string; status?: number; details?: string }
-      const why = [e.message.split('\n')[0], e.status ? `HTTP ${e.status}` : '', e.details?.slice(0, 80) ?? ''].filter(Boolean).join(' · ')
+      // redact: viem includes the request URL, which carries the provider's api_key.
+      const why = redact([e.message.split('\n')[0], e.status ? `HTTP ${e.status}` : '', e.details?.slice(0, 80) ?? ''].filter(Boolean).join(' · '))
       console.error(`watch: tick failed ×${failures} (chunk→${chunk}), retrying — ${why}`)
     }
     // A dedicated RPC turns the watcher into a live tape: a few blocks per tick, every few seconds.
