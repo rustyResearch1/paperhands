@@ -195,3 +195,26 @@ Still open from the audit
       having no post-trade state
 - [ ] Link `/how` from the marketing surfaces once they exist (OG image, landing hero)
 - [ ] Consider surfacing the same hooked-pool caveat inline on token pages, where a near-zero price move currently reads as good news
+
+## Stage P — PONS launchpad (2026-09-12) ✓ core
+Research: PONS is Robinhood Chain's dominant launchpad (~60% of launch volume, ~12 launches/min, ~490 curve trades/min).
+V2 factory `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` (verified source): per-launch `PonsV2BondingCurve` (constant product on a
+phantom quote reserve, feeBps + creatorTaxBps off the input, snipe tax `startBps >> (elapsed*14/window)` over `snipeTaxSeconds`=3),
+graduation at `graduationThreshold` (per launch config; 4.2 ETH common, 42 ETH seen) → locked v4 pool under the meme hook
+`0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044` (= our most common hook). Launches are quoted in ETH, USDG, or tokenized stocks
+(NVDA, GOOGL, TSLA, USO, GME, DJT, AAPL, SPY…). V1 factory is dead. Curve events name the trader (free attribution).
+- [x] `packages/indexer/src/pons.ts`: TokenLaunched/PoolGraduated (factory) + CurveBuy/CurveSell (topic-filtered) with bisect;
+      tables `launches` (running totals, quote-decimal-aware price) + `curve_trades`; lazy registration of pre-window curves;
+      graduation → v4 pool link; ported curve maths (`curveAmountOut`, `snipeTaxBpsAt`); `pons-backfill [blocks]` CLI;
+      watcher ingests the same range every tick and repairs prices on boot
+- [x] `/launches` (New / Trending 5m / Graduating / Graduated, 5s polling, quote pill, curve fill vs its own threshold, 5m
+      buy/sell, wallets, in, mcap, deployer record) and `/launch/[token]` (curve tape with named buyers, biggest bags net of
+      sells, deployer's other launches, graduated pool link, live curve quote box with fee/tax/snipe/impact from one block)
+- [x] stock-quoted launches priced into dollars from our own ledger (`quoteTokenUsd`); hub totals by quote token
+- [x] cost-basis replay merges curve buys/sells (ETH-quoted) with pool swaps — one position across graduation; wallet
+      timeline unions both venues with a `curve` pill; curve-only bags link to the launch page
+- [ ] Tape: a `launchpad` stream (curve trades as fills) beside tracked/everyone
+- [ ] Alerts: graduating (≥90%), serial-deployer relaunch, deployer selling into his own curve
+- [ ] Stock-quoted launches in the P&L replay (convert the quote leg to ETH at the stock token's ledger price)
+- [ ] Curve execution: real buys/sells on the curve from the wallet (curve.buy/sell are plain calls; snipe-tax aware ticket)
+- [ ] Deployer intelligence: cluster deployers by funding source; graduation rate on the Wire
