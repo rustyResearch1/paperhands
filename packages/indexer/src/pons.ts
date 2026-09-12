@@ -201,6 +201,9 @@ export async function ingestPons(client: ChainClient, db: Database.Database, log
   let launches = 0
   for (const l of logs.launches) {
     await upsertToken(client, db, l.token as Address, l.block)
+    // Launches are quoted in ETH, USDG or a tokenized stock (NVDA, GOOGL, TSLA…): the
+    // pair token's decimals decide how every amount below reads.
+    if (l.pairToken !== PONS.native) await upsertToken(client, db, l.pairToken as Address, l.block)
     const r = insertLaunch.run(l.token, l.curve, l.deployer, l.pairToken, l.configId, l.graduationThreshold.toString(), Number(l.block), clock.estimate(l.block), l.txHash)
     if (r.changes > 0) launches++
     curveToToken.set(l.curve, l.token)
@@ -232,6 +235,16 @@ export async function ingestPons(client: ChainClient, db: Database.Database, log
      WHERE token = ?`,
   )
   const decimalsOf = db.prepare(`SELECT decimals FROM tokens WHERE address = ?`)
+  const pairOf = db.prepare(`SELECT pair_token FROM launches WHERE token = ?`)
+  const decCache = new Map<string, number>()
+  const decimals = (address: string): number => {
+    if (address === PONS.native) return 18
+    const hit = decCache.get(address)
+    if (hit !== undefined) return hit
+    const d = (decimalsOf.get(address) as { decimals: number } | undefined)?.decimals ?? 18
+    decCache.set(address, d)
+    return d
+  }
   let trades = 0
   const tx = db.transaction(() => {
     for (const t of logs.trades) {
@@ -240,8 +253,10 @@ export async function ingestPons(client: ChainClient, db: Database.Database, log
       const ins = insertTrade.run(t.txHash, t.logIndex, t.curve, token, Number(t.block), clock.estimate(t.block), t.side, t.trader, t.recipient, t.quote.toString(), t.tokens.toString(), t.fee.toString(), t.tax.toString())
       if (ins.changes === 0) continue
       trades++
-      const dec = (decimalsOf.get(token) as { decimals: number } | undefined)?.decimals ?? 18
-      const price = t.tokens > 0n ? Number(t.quote) / 1e18 / (Number(t.tokens) / 10 ** dec) : null
+      const dec = decimals(token)
+      const pair = (pairOf.get(token) as { pair_token: string } | undefined)?.pair_token ?? PONS.native
+      // Price in the pair token's human units per launch token.
+      const price = t.tokens > 0n ? Number(t.quote) / 10 ** decimals(pair) / (Number(t.tokens) / 10 ** dec) : null
       const isBuy = t.side === 'buy'
       bump.run(isBuy ? 1 : 0, isBuy ? 0 : 1, isBuy ? Number(t.quote) : 0, isBuy ? 0 : Number(t.quote), Number(t.fee), Number(t.tax), isBuy ? Number(t.tokens) : 0, isBuy ? 0 : Number(t.tokens), Number(t.block), price, token)
     }
@@ -270,6 +285,24 @@ export function linkGraduatedPools(db: Database.Database): number {
        WHERE graduated_block IS NOT NULL AND pool IS NULL`,
     )
     .run(PONS.memeHook.toLowerCase()).changes
+}
+
+/**
+ * Recompute each launch's last price from its newest trade, in the pair
+ * token's own decimals. A one-off repair for rows written before quote
+ * decimals were honoured (USDG is 6, cbBTC is 8); harmless to rerun.
+ */
+export function repairLaunchPrices(db: Database.Database): number {
+  return db
+    .prepare(
+      `UPDATE launches SET last_price = (
+         SELECT (CAST(c.quote_raw AS REAL) / POWER(10, COALESCE(q.decimals, 18))) / (CAST(c.tokens_raw AS REAL) / POWER(10, t.decimals))
+         FROM curve_trades c JOIN tokens t ON t.address = c.token LEFT JOIN tokens q ON q.address = launches.pair_token
+         WHERE c.token = launches.token AND CAST(c.tokens_raw AS REAL) > 0
+         ORDER BY c.block DESC, c.log_index DESC LIMIT 1
+       ) WHERE buys > 0`,
+    )
+    .run().changes
 }
 
 /** Curve pricing, ported: constant product on the phantom reserve. */

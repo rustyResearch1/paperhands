@@ -37,10 +37,11 @@ export const viewport: Viewport = { themeColor: '#eeebe5', width: 'device-width'
 const NAV = [
   { href: '/', label: 'Markets', primary: true },
   { href: '/tape', label: 'Tape', primary: true },
+  { href: '/launches', label: 'Launches', primary: true },
   { href: '/baskets', label: 'Baskets', primary: true },
+  { href: '/wire', label: 'Wire', primary: false },
   { href: '/lp', label: 'LP', primary: false },
   { href: '/x', label: 'Execution', primary: false },
-  { href: '/wire', label: 'Wire', primary: true },
   { href: '/portfolio', label: 'Portfolio', primary: true },
 ]
 const MORE = [

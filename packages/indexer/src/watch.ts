@@ -7,7 +7,7 @@ import { executeTails } from './tails.js'
 import { basePriceInQuote, toHuman } from './prices.js'
 import { getMeta, hasIndex, setMeta } from './db.js'
 import { refreshAlerts } from './alerts.js'
-import { fetchPonsLogs, ingestPons } from './pons.js'
+import { fetchPonsLogs, ingestPons, repairLaunchPrices } from './pons.js'
 import { refreshScreener } from './screener.js'
 import { BlockClock } from './timestamps.js'
 import { validateNextPool } from './validate.js'
@@ -333,6 +333,13 @@ export async function watchLoop(client: ChainClient, db: Database.Database, opts
   // advances the cursor is worse than a slow one.
   let chunk = 5_000n
 
+  // Launch prices in the quote token's own decimals (a one-off repair, idempotent).
+  try {
+    const fixed = repairLaunchPrices(db)
+    if (fixed) console.log(`watch: repaired last_price on ${fixed} launches`)
+  } catch (err) {
+    console.warn('launch price repair skipped:', (err as Error).message)
+  }
   console.log(`watch: starting from block ${cursor}`)
   for (;;) {
     try {
